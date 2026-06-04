@@ -32,6 +32,16 @@ class PatientCreate(BaseModel):
     occupation: Optional[str] = None
 
 
+class QuickRegisterPatient(BaseModel):
+    """Minimal fields needed to issue a real UHID — receptionist fills full details later."""
+    first_name: str
+    last_name: str
+    phone: str
+    gender: Gender
+    date_of_birth: date
+    middle_name: Optional[str] = None
+
+
 class PatientUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None

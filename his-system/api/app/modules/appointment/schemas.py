@@ -1,7 +1,7 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import date, time
-from app.db.models import AppointmentType, AppointmentStatus, VisitType
+from app.db.models import AppointmentType, AppointmentStatus, VisitType, BlockReason
 
 
 class AppointmentCreate(BaseModel):
@@ -37,4 +37,29 @@ class WaitlistCreate(BaseModel):
     doctor_id: int
     department_id: int
     preferred_date: date
+    notes: Optional[str] = None
+
+
+class CancelBody(BaseModel):
+    reason: str
+    note: Optional[str] = None
+
+
+class BulkCancelBody(BaseModel):
+    appointment_ids: List[int]
+    reason: str
+
+
+class BulkTransferBody(BaseModel):
+    appointment_ids: List[int]
+    to_doctor_id: int
+    reason: str
+
+
+class DoctorBlockCreate(BaseModel):
+    doctor_id: int
+    block_date: date
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    reason: BlockReason
     notes: Optional[str] = None

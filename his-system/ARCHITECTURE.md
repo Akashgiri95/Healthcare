@@ -302,6 +302,43 @@ curl http://localhost:8000/api/masters/departments \
 
 ---
 
+## Appointment Management Module
+
+The `/appointments` page is the full appointment management screen for reception staff.
+
+### What it does
+| Feature | Where |
+|---|---|
+| Stats strip (total, checked-in, completed, cancelled, no-show) | Top of appointments page |
+| Filter by date, status, search | Toolbar |
+| Per-row actions: Check In, Reschedule, Cancel, No Show | Row buttons |
+| Audit log for every appointment | Eye icon → modal |
+| Bulk Cancel (select rows → cancel with reason) | Checkbox + bulk bar |
+| Bulk Transfer (check capacity, move to another doctor) | Checkbox + bulk bar |
+| Book appointment for existing or new patient | `/appointments/new` |
+| Quick-register walk-in patient (real UHID, minimal fields) | New appointment page |
+| Duplicate check warning | If same patient+doctor+date exists |
+| Appointment slip (printable confirmation) | After booking |
+| Doctor block slots (admin/reception sets leave/conference) | API: `POST /api/appointments/blocks` |
+
+### New DB Tables
+- `appointment_audit_logs` — every action (CREATED, CHECKED_IN, RESCHEDULED, CANCELLED, NO_SHOW, TRANSFERRED) stored with who did it and when
+- `doctor_blocks` — blocks a doctor's schedule for a date range (LEAVE, CONFERENCE, HOLIDAY, etc.)
+
+### API Endpoints Added
+```
+GET  /api/appointments/stats          — counts by status for a date
+GET  /api/appointments/duplicate-check — warns if patient already has appt with same doctor
+GET  /api/appointments/{id}/audit     — full audit trail for one appointment
+POST /api/appointments/{id}/cancel    — cancel with reason + audit log
+POST /api/appointments/bulk-cancel    — cancel multiple appointments
+POST /api/appointments/bulk-transfer  — move appointments to another doctor (checks capacity)
+GET  /api/appointments/blocks         — list doctor schedule blocks
+POST /api/appointments/blocks         — create a block (leave, holiday…)
+DELETE /api/appointments/blocks/{id}  — remove a block
+POST /api/patients/quick-register     — minimal registration (Name+Phone+DOB+Gender → real UHID)
+```
+
 ## What's NOT in the project yet (next to build)
 
 - [ ] Billing page — fully functional (create bill from visit, add items, calculate GST, record payment)

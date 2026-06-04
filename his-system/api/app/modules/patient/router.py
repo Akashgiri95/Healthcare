@@ -4,7 +4,7 @@ from typing import Optional
 from app.db.database import get_session
 from app.db.models import Patient, PatientAllergy
 from app.modules.auth.router import get_current_user
-from app.modules.patient.schemas import PatientCreate, PatientUpdate
+from app.modules.patient.schemas import PatientCreate, PatientUpdate, QuickRegisterPatient
 from app.modules.patient.service import generate_uhid
 import math
 
@@ -35,6 +35,36 @@ def list_patients(
 @router.post("", status_code=201)
 def create_patient(body: PatientCreate, session: Session = Depends(get_session), current_user=Depends(get_current_user)):
     patient = Patient(**body.model_dump(), uhid=generate_uhid(session), registered_by=current_user.id)
+    session.add(patient)
+    session.commit()
+    session.refresh(patient)
+    return patient
+
+
+@router.post("/quick-register", status_code=201)
+def quick_register(
+    body: QuickRegisterPatient,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """Register a walk-in patient with minimal details. UHID is generated immediately.
+    Receptionist completes full profile later via PUT /{patient_id}."""
+    patient = Patient(
+        first_name=body.first_name,
+        middle_name=body.middle_name,
+        last_name=body.last_name,
+        date_of_birth=body.date_of_birth,
+        gender=body.gender,
+        phone=body.phone,
+        # Required DB fields — defaulted for quick registration
+        address_line1="To be updated",
+        city="—",
+        district="—",
+        state="—",
+        pincode="000000",
+        uhid=generate_uhid(session),
+        registered_by=current_user.id,
+    )
     session.add(patient)
     session.commit()
     session.refresh(patient)
