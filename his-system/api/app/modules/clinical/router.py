@@ -9,6 +9,13 @@ from datetime import datetime
 router = APIRouter()
 
 
+def _generate_consultation_no(session: Session) -> str:
+    from datetime import date
+    prefix = f"CON{date.today().strftime('%Y%m%d')}"
+    count = session.exec(select(Consultation).where(Consultation.consultation_no.startswith(prefix))).all()  # type: ignore
+    return f"{prefix}{len(count) + 1:04d}"
+
+
 def _resolve_doctor_id(session: Session, current_user) -> int:
     doc = session.exec(select(Doctor).where(Doctor.user_id == current_user.id)).first()
     if not doc:
@@ -58,7 +65,11 @@ def create_consultation(body: ConsultationCreate, session: Session = Depends(get
     if existing:
         raise HTTPException(400, "Consultation already exists for this visit")
 
-    consultation = Consultation(**body.model_dump(), doctor_id=doctor_id)
+    consultation = Consultation(
+        **body.model_dump(),
+        doctor_id=doctor_id,
+        consultation_no=_generate_consultation_no(session),
+    )
     session.add(consultation)
     session.commit()
     session.refresh(consultation)

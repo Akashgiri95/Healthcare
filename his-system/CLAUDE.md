@@ -61,12 +61,21 @@ Registration → Book Appointment → Check-in → Vitals (Nurse)
 - NMC registration number for doctors
 - Ayushman Bharat insurance support
 
-## Vibe Coding Rules
-1. Always read web/CLAUDE.md before editing frontend files
-2. Always read api/CLAUDE.md before editing backend files
-3. Work one module at a time
-4. Types/schemas defined in api first, then frontend consumes them
-5. All demo data seeded via api/seed.py — never hardcode data in UI
+## Working Process (MUST FOLLOW)
+1. **Discuss before building** — explain what we're doing and why, get approval, then implement
+2. **Read before editing** — always read web/CLAUDE.md or api/CLAUDE.md before touching files
+3. **One module at a time** — finish it fully before starting the next
+4. **Update ARCHITECTURE.md** — if structure/flow changes, document it there first
+5. **Commit after every meaningful change** — push to GitHub so progress is saved
+6. **Schemas first** — define API schema before writing frontend that calls it
+7. **Never hardcode data** — all demo data comes from api/seed.py
+
+## Key Rules (Claude must follow)
+- DOCTOR role required for consultation endpoints — admin has no Doctor record
+- consultation_no format: CON + YYYYMMDD + 4-digit seq
+- patient_id must be in vitals payload
+- Lab tests named "Complete Blood Count" not "CBC" in seed data
+- Pharmacy module not yet implemented (router missing)
 
 ## Module Map
 | Module | API prefix | Frontend route |
