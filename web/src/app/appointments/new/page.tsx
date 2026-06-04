@@ -1,0 +1,367 @@
+"use client";
+import { Sidebar } from "@/components/his/sidebar";
+import { Topbar } from "@/components/his/topbar";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import api from "@/lib/api";
+import { useState, useEffect } from "react";
+import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "sonner";
+import { Search, UserPlus, CheckCircle, AlertTriangle, Printer, ChevronLeft } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { calcAge, fmtDate } from "@/lib/utils";
+
+type Patient = { id: number; uhid: string; first_name: string; last_name: string; phone: string; date_of_birth: string; gender: string };
+type Doctor  = { id: number; full_name: string; department_id: number; department_name: string; specialization: string; max_patients_per_slot: number };
+
+// ── Appointment Slip (print view) ─────────────────────────────────────────────
+function AppointmentSlip({ appt, patient, doctor }: { appt: any; patient: Patient; doctor: Doctor }) {
+  return (
+    <div className="p-8 border rounded-lg bg-white text-sm" id="print-slip">
+      <div className="text-center mb-6">
+        <h1 className="text-lg font-bold text-blue-900">City General Hospital</h1>
+        <p className="text-gray-500 text-xs">Appointment Confirmation Slip</p>
+      </div>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-2 border-t pt-4">
+        <div><span className="text-gray-400 text-xs">Appointment No</span><p className="font-mono font-semibold">{appt.appointment_no}</p></div>
+        <div><span className="text-gray-400 text-xs">Token</span><p className="text-2xl font-bold text-blue-600">#{appt.token_number}</p></div>
+        <div><span className="text-gray-400 text-xs">Patient Name</span><p className="font-medium">{patient.first_name} {patient.last_name}</p></div>
+        <div><span className="text-gray-400 text-xs">UHID</span><p className="font-mono">{patient.uhid}</p></div>
+        <div><span className="text-gray-400 text-xs">Age / Gender</span><p>{calcAge(patient.date_of_birth)} / {patient.gender}</p></div>
+        <div><span className="text-gray-400 text-xs">Phone</span><p>{patient.phone}</p></div>
+        <div><span className="text-gray-400 text-xs">Doctor</span><p className="font-medium">{doctor.full_name}</p></div>
+        <div><span className="text-gray-400 text-xs">Department</span><p>{doctor.department_name}</p></div>
+        <div><span className="text-gray-400 text-xs">Date</span><p className="font-medium">{fmtDate(appt.appointment_date)}</p></div>
+        <div><span className="text-gray-400 text-xs">Time</span><p className="font-medium">{appt.appointment_time}</p></div>
+        <div><span className="text-gray-400 text-xs">Type</span><p>{appt.appointment_type?.replace("_", " ")}</p></div>
+        <div><span className="text-gray-400 text-xs">Visit Type</span><p>{appt.visit_type?.replace("_", " ")}</p></div>
+      </div>
+      {appt.chief_complaint && (
+        <div className="mt-4 border-t pt-3">
+          <span className="text-gray-400 text-xs">Chief Complaint</span>
+          <p>{appt.chief_complaint}</p>
+        </div>
+      )}
+      <div className="mt-6 border-t pt-3 text-center text-xs text-gray-400">
+        Please arrive 15 minutes before your appointment time. Bring this slip and a valid ID.
+      </div>
+    </div>
+  );
+}
+
+export default function NewAppointmentPage() {
+  const router = useRouter();
+
+  // Step 1 — Patient
+  const [searchQ, setSearchQ] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [showQuickReg, setShowQuickReg] = useState(false);
+  const [qrForm, setQrForm] = useState({ first_name: "", last_name: "", phone: "", gender: "MALE", date_of_birth: "" });
+
+  // Step 2 — Booking
+  const [deptId, setDeptId] = useState<string | null>(null);
+  const [doctorId, setDoctorId] = useState<string | null>(null);
+  const [apptDate, setApptDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [apptTime, setApptTime] = useState("09:00");
+  const [apptType, setApptType] = useState("WALK_IN");
+  const [visitType, setVisitType] = useState("NEW");
+  const [chiefComplaint, setChiefComplaint] = useState("");
+
+  // Result
+  const [bookedAppt, setBookedAppt] = useState<any>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+
+  const { data: searchResults = [], isLoading: searching } = useQuery({
+    queryKey: ["patient-search", searchQ],
+    queryFn: () => api.get(`/api/patients?q=${searchQ}&limit=10`).then((r) => r.data.data),
+    enabled: searchQ.length >= 2,
+  });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => api.get("/api/masters/departments").then((r) => r.data),
+  });
+
+  const { data: doctors = [] } = useQuery({
+    queryKey: ["doctors", deptId],
+    queryFn: () => api.get(`/api/masters/doctors${deptId ? `?department_id=${deptId}` : ""}`).then((r) => r.data),
+  });
+
+  const { data: dupCheck } = useQuery({
+    queryKey: ["dup-check", selectedPatient?.id, doctorId, apptDate],
+    queryFn: () => api.get(`/api/appointments/duplicate-check?patient_id=${selectedPatient!.id}&doctor_id=${doctorId}&check_date=${apptDate}`).then((r) => r.data),
+    enabled: !!(selectedPatient && doctorId && apptDate),
+  });
+
+  const quickRegMut = useMutation({
+    mutationFn: (body: typeof qrForm) => api.post("/api/patients/quick-register", body),
+    onSuccess: (res) => {
+      setSelectedPatient(res.data);
+      setShowQuickReg(false);
+      setQrForm({ first_name: "", last_name: "", phone: "", gender: "MALE", date_of_birth: "" });
+      toast.success(`Patient registered — UHID: ${res.data.uhid}`);
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || "Registration failed"),
+  });
+
+  const bookMut = useMutation({
+    mutationFn: (body: any) => api.post("/api/appointments", body),
+    onSuccess: (res) => {
+      setBookedAppt(res.data);
+      const doc = doctors.find((d: Doctor) => d.id === Number(doctorId));
+      setSelectedDoctor(doc ?? null);
+      toast.success("Appointment booked!");
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || "Booking failed"),
+  });
+
+  const handleBook = () => {
+    if (!selectedPatient || !doctorId || !apptDate || !apptTime) return;
+    const dept = doctors.find((d: Doctor) => d.id === Number(doctorId))?.department_id;
+    bookMut.mutate({
+      patient_id: selectedPatient.id,
+      doctor_id: Number(doctorId),
+      department_id: dept,
+      appointment_date: apptDate,
+      appointment_time: apptTime + ":00",
+      appointment_type: apptType,
+      visit_type: visitType,
+      chief_complaint: chiefComplaint || undefined,
+    });
+  };
+
+  // Success screen
+  if (bookedAppt && selectedPatient && selectedDoctor) {
+    return (
+      <div className="flex h-screen">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Topbar title="Appointment Booked" />
+          <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div className="max-w-xl mx-auto space-y-4">
+              <div className="flex items-center gap-2 text-green-600 mb-2">
+                <CheckCircle className="w-5 h-5" />
+                <span className="font-semibold">Appointment confirmed</span>
+              </div>
+              <AppointmentSlip appt={bookedAppt} patient={selectedPatient} doctor={selectedDoctor} />
+              <div className="flex gap-3">
+                <Button className="gap-1.5" onClick={() => window.print()}>
+                  <Printer className="w-4 h-4" /> Print Slip
+                </Button>
+                <Button variant="outline" onClick={() => router.push("/appointments")}>
+                  Back to Appointments
+                </Button>
+                <Button variant="ghost" onClick={() => {
+                  setBookedAppt(null); setSelectedPatient(null); setSelectedDoctor(null);
+                  setDoctorId(null); setDeptId(null); setChiefComplaint(""); setSearchQ("");
+                }}>
+                  Book Another
+                </Button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Topbar title="Book Appointment" />
+        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+          <div className="max-w-2xl mx-auto space-y-5">
+            <Link href="/appointments" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+              <ChevronLeft className="w-4 h-4" /> Back to Appointments
+            </Link>
+
+            {/* ── Step 1: Patient ── */}
+            <Card>
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-gray-800">Step 1 — Select Patient</h2>
+                  {!selectedPatient && !showQuickReg && (
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowQuickReg(true)}>
+                      <UserPlus className="w-4 h-4" /> Quick Register
+                    </Button>
+                  )}
+                </div>
+
+                {selectedPatient ? (
+                  <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                    <div>
+                      <p className="font-medium text-gray-800">{selectedPatient.first_name} {selectedPatient.last_name}</p>
+                      <p className="text-xs text-gray-500">{selectedPatient.uhid} · {selectedPatient.phone} · {calcAge(selectedPatient.date_of_birth)} / {selectedPatient.gender}</p>
+                    </div>
+                    <button className="text-xs text-blue-600 underline" onClick={() => { setSelectedPatient(null); setSearchQ(""); }}>
+                      Change
+                    </button>
+                  </div>
+                ) : showQuickReg ? (
+                  <div className="border rounded-lg p-4 space-y-3 bg-amber-50">
+                    <p className="text-sm font-medium text-amber-800">Quick Registration — UHID will be generated immediately</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">First Name *</label>
+                        <Input value={qrForm.first_name} onChange={(e) => setQrForm(f => ({ ...f, first_name: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Last Name *</label>
+                        <Input value={qrForm.last_name} onChange={(e) => setQrForm(f => ({ ...f, last_name: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Phone *</label>
+                        <Input value={qrForm.phone} onChange={(e) => setQrForm(f => ({ ...f, phone: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Gender *</label>
+                        <Select value={qrForm.gender} onValueChange={(v) => setQrForm(f => ({ ...f, gender: v ?? "MALE" }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MALE">Male</SelectItem>
+                            <SelectItem value="FEMALE">Female</SelectItem>
+                            <SelectItem value="OTHER">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Date of Birth *</label>
+                        <Input type="date" value={qrForm.date_of_birth} onChange={(e) => setQrForm(f => ({ ...f, date_of_birth: e.target.value }))} max={format(new Date(), "yyyy-MM-dd")} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="bg-amber-600 hover:bg-amber-700"
+                        disabled={!qrForm.first_name || !qrForm.last_name || !qrForm.phone || !qrForm.date_of_birth || quickRegMut.isPending}
+                        onClick={() => quickRegMut.mutate(qrForm)}>
+                        Register & Select
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowQuickReg(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    <Input
+                      className="pl-9"
+                      placeholder="Search by name, phone, or UHID…"
+                      value={searchQ}
+                      onChange={(e) => setSearchQ(e.target.value)}
+                    />
+                    {searchQ.length >= 2 && (
+                      <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+                        {searching && <div className="px-4 py-3 text-sm text-gray-400">Searching…</div>}
+                        {!searching && searchResults.length === 0 && (
+                          <div className="px-4 py-3 text-sm text-gray-400">No patients found — try Quick Register</div>
+                        )}
+                        {searchResults.map((p: Patient) => (
+                          <button key={p.id} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 border-b last:border-0"
+                            onClick={() => { setSelectedPatient(p); setSearchQ(""); }}>
+                            <p className="text-sm font-medium text-gray-800">{p.first_name} {p.last_name}</p>
+                            <p className="text-xs text-gray-400">{p.uhid} · {p.phone} · {calcAge(p.date_of_birth)}</p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ── Step 2: Booking ── */}
+            {selectedPatient && (
+              <Card>
+                <CardContent className="p-5 space-y-4">
+                  <h2 className="font-semibold text-gray-800">Step 2 — Appointment Details</h2>
+
+                  {dupCheck?.duplicate && (
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                      <span>This patient already has an appointment with this doctor on {apptDate}. Proceed only if needed.</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Department</label>
+                      <Select value={deptId ?? "ALL"} onValueChange={(v) => { setDeptId(v === "ALL" ? null : (v ?? null)); setDoctorId(null); }}>
+                        <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All departments</SelectItem>
+                          {departments.map((d: any) => (
+                            <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Doctor *</label>
+                      <Select value={doctorId ?? ""} onValueChange={(v) => setDoctorId(v ?? null)}>
+                        <SelectTrigger><SelectValue placeholder="Select doctor" /></SelectTrigger>
+                        <SelectContent>
+                          {doctors.map((d: Doctor) => (
+                            <SelectItem key={d.id} value={String(d.id)}>
+                              {d.full_name} — {d.department_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Date *</label>
+                      <Input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)}
+                        min={format(new Date(), "yyyy-MM-dd")} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Time *</label>
+                      <Input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Appointment Type</label>
+                      <Select value={apptType} onValueChange={(v) => setApptType(v ?? "WALK_IN")}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="WALK_IN">Walk-in</SelectItem>
+                          <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                          <SelectItem value="FOLLOW_UP">Follow-up</SelectItem>
+                          <SelectItem value="EMERGENCY">Emergency</SelectItem>
+                          <SelectItem value="TELECONSULT">Teleconsult</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 mb-1 block">Visit Type</label>
+                      <Select value={visitType} onValueChange={(v) => setVisitType(v ?? "NEW")}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NEW">New</SelectItem>
+                          <SelectItem value="FOLLOW_UP">Follow-up</SelectItem>
+                          <SelectItem value="EMERGENCY">Emergency</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-gray-500 mb-1 block">Chief Complaint (optional)</label>
+                      <Input value={chiefComplaint} onChange={(e) => setChiefComplaint(e.target.value)}
+                        placeholder="e.g. Chest pain, Fever since 3 days…" />
+                    </div>
+                  </div>
+
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 mt-2"
+                    disabled={!doctorId || !apptDate || !apptTime || bookMut.isPending}
+                    onClick={handleBook}>
+                    Confirm Appointment
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

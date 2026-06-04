@@ -93,6 +93,22 @@ class WaitlistStatus(str, Enum):
     BOOKED = "BOOKED"
     EXPIRED = "EXPIRED"
 
+class AuditAction(str, Enum):
+    CREATED = "CREATED"
+    CHECKED_IN = "CHECKED_IN"
+    RESCHEDULED = "RESCHEDULED"
+    CANCELLED = "CANCELLED"
+    NO_SHOW = "NO_SHOW"
+    STATUS_CHANGED = "STATUS_CHANGED"
+    TRANSFERRED = "TRANSFERRED"
+
+class BlockReason(str, Enum):
+    LEAVE = "LEAVE"
+    CONFERENCE = "CONFERENCE"
+    EMERGENCY = "EMERGENCY"
+    HOLIDAY = "HOLIDAY"
+    OTHER = "OTHER"
+
 
 # ─── Company (corporate billing accounts) ────────────────────────────────────
 
@@ -307,6 +323,7 @@ class Appointment(SQLModel, table=True):
     patient: Optional[Patient] = Relationship(back_populates="appointments")
     doctor: Optional[Doctor] = Relationship(back_populates="appointments")
     visit: Optional["Visit"] = Relationship(back_populates="appointment")
+    audit_logs: list["AppointmentAuditLog"] = Relationship(back_populates="appointment")
 
 
 # ─── Visit (OPD Encounter) ────────────────────────────────────────────────────
@@ -620,3 +637,37 @@ class Waitlist(SQLModel, table=True):
     notified_at: Optional[datetime] = None
 
     patient: Optional[Patient] = Relationship(back_populates="waitlist_entries")
+
+
+# ─── Appointment Audit Log ────────────────────────────────────────────────────
+
+class AppointmentAuditLog(SQLModel, table=True):
+    __tablename__ = "appointment_audit_logs"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    appointment_id: int = Field(foreign_key="appointments.id", index=True)
+    action: AuditAction
+    performed_by: int = Field(foreign_key="users.id")
+    note: Optional[str] = None
+    old_value: Optional[str] = None   # JSON snapshot before change
+    new_value: Optional[str] = None   # JSON snapshot after change
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    appointment: Optional[Appointment] = Relationship(back_populates="audit_logs")
+
+
+# ─── Doctor Block (schedule blockouts) ───────────────────────────────────────
+
+class DoctorBlock(SQLModel, table=True):
+    __tablename__ = "doctor_blocks"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    doctor_id: int = Field(foreign_key="doctors.id", index=True)
+    block_date: date
+    start_time: Optional[time] = None   # None = full day
+    end_time: Optional[time] = None
+    reason: BlockReason
+    notes: Optional[str] = None
+    created_by: int = Field(foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = True

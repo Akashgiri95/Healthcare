@@ -1,16 +1,19 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 from app.db.database import get_session
 from app.db.models import (
-    Appointment, Doctor, Department, Visit, User,
-    AppointmentStatus, Waitlist, WaitlistStatus
+    Appointment, Doctor, Department, Patient, Visit, User,
+    AppointmentStatus, Waitlist, WaitlistStatus,
+    AppointmentAuditLog, DoctorBlock, AuditAction,
 )
 from app.modules.auth.router import get_current_user
 from app.modules.appointment.schemas import (
     AppointmentCreate, AppointmentStatusUpdate,
     AppointmentReschedule, NotifyDelay, WaitlistCreate,
+    CancelBody, BulkCancelBody, BulkTransferBody, DoctorBlockCreate,
 )
 from app.modules.appointment.service import (
     generate_appointment_no, generate_visit_no, get_next_token,
@@ -18,6 +21,47 @@ from app.modules.appointment.service import (
 )
 
 router = APIRouter()
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _log_action(
+    session: Session,
+    appointment_id: int,
+    action: AuditAction,
+    performed_by: int,
+    note: str = None,
+    old_val: str = None,
+    new_val: str = None,
+):
+    """Write an audit entry — caller must commit."""
+    session.add(AppointmentAuditLog(
+        appointment_id=appointment_id,
+        action=action,
+        performed_by=performed_by,
+        note=note,
+        old_value=old_val,
+        new_value=new_val,
+    ))
+
+
+def _enrich(session: Session, appts: list) -> list:
+    """Add patient/doctor/department names to appointment dicts."""
+    result = []
+    for a in appts:
+        pat = session.get(Patient, a.patient_id)
+        doc = session.get(Doctor, a.doctor_id)
+        doc_user = session.get(User, doc.user_id) if doc else None
+        dept = session.get(Department, a.department_id)
+        result.append({
+            **a.model_dump(),
+            "patient_name": f"{pat.first_name} {pat.last_name}" if pat else "",
+            "patient_uhid": pat.uhid if pat else "",
+            "patient_phone": pat.phone if pat else "",
+            "doctor_name": doc_user.full_name if doc_user else "",
+            "department_name": dept.name if dept else "",
+        })
+    return result
 
 
 # ─── Read endpoints ───────────────────────────────────────────────────────────
@@ -29,6 +73,7 @@ def list_appointments(
     department_id: Optional[int] = Query(None),
     status: Optional[AppointmentStatus] = Query(None),
     patient_id: Optional[int] = Query(None),
+    search: Optional[str] = Query(None),
     session: Session = Depends(get_session),
     _=Depends(get_current_user),
 ):
@@ -43,25 +88,70 @@ def list_appointments(
         query = query.where(Appointment.status == status)
     if patient_id:
         query = query.where(Appointment.patient_id == patient_id)
+
     appts = session.exec(query.order_by(Appointment.priority.desc(), Appointment.token_number)).all()
 
-    # Enrich with patient and doctor names
-    result = []
+    if search:
+        search_lower = search.lower()
+        filtered = []
+        for a in appts:
+            pat = session.get(Patient, a.patient_id)
+            if pat and (
+                search_lower in pat.first_name.lower() or
+                search_lower in pat.last_name.lower() or
+                search_lower in pat.uhid.lower() or
+                search_lower in (pat.phone or "")
+            ):
+                filtered.append(a)
+        appts = filtered
+
+    return _enrich(session, appts)
+
+
+@router.get("/stats")
+def appointment_stats(
+    stats_date: Optional[date] = Query(None),
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    target = stats_date or date.today()
+    appts = session.exec(
+        select(Appointment).where(Appointment.appointment_date == target)
+    ).all()
+
+    counts = {s.value: 0 for s in AppointmentStatus}
     for a in appts:
-        from app.db.models import Patient
-        pat = session.get(Patient, a.patient_id)
-        doc = session.get(Doctor, a.doctor_id)
-        doc_user = session.get(User, doc.user_id) if doc else None
-        dept = session.get(Department, a.department_id)
-        result.append({
-            **a.model_dump(),
-            "patient_name": f"{pat.first_name} {pat.last_name}" if pat else "",
-            "patient_uhid": pat.uhid if pat else "",
-            "patient_phone": pat.phone if pat else "",
-            "doctor_name": doc_user.full_name if doc_user else "",
-            "department_name": dept.name if dept else "",
-        })
-    return result
+        counts[a.status.value] += 1
+
+    return {
+        "date": target,
+        "total": len(appts),
+        "by_status": counts,
+        "pending": counts["SCHEDULED"] + counts["CHECKED_IN"] + counts["IN_QUEUE"] + counts["WITH_DOCTOR"],
+        "completed": counts["COMPLETED"],
+        "cancelled": counts["CANCELLED"],
+        "no_show": counts["NO_SHOW"],
+    }
+
+
+@router.get("/duplicate-check")
+def duplicate_check(
+    patient_id: int = Query(...),
+    doctor_id: int = Query(...),
+    check_date: Optional[date] = Query(None),
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    target = check_date or date.today()
+    existing = session.exec(
+        select(Appointment).where(
+            Appointment.patient_id == patient_id,
+            Appointment.doctor_id == doctor_id,
+            Appointment.appointment_date == target,
+            Appointment.status.not_in([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+        )
+    ).first()
+    return {"duplicate": existing is not None, "appointment": existing}
 
 
 @router.get("/available-slots")
@@ -135,7 +225,6 @@ def get_waitlist(
 
     result = []
     for w in entries:
-        from app.db.models import Patient
         pat = session.get(Patient, w.patient_id)
         doc = session.get(Doctor, w.doctor_id)
         doc_user = session.get(User, doc.user_id) if doc else None
@@ -146,6 +235,85 @@ def get_waitlist(
             "doctor_name": doc_user.full_name if doc_user else "",
         })
     return result
+
+
+@router.get("/{appt_id}/audit")
+def get_audit_log(
+    appt_id: int,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    appt = session.get(Appointment, appt_id)
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    logs = session.exec(
+        select(AppointmentAuditLog)
+        .where(AppointmentAuditLog.appointment_id == appt_id)
+        .order_by(AppointmentAuditLog.created_at)
+    ).all()
+    result = []
+    for log in logs:
+        user = session.get(User, log.performed_by)
+        result.append({
+            **log.model_dump(),
+            "performed_by_name": user.full_name if user else "Unknown",
+            "performed_by_role": user.role if user else None,
+        })
+    return result
+
+
+# ─── Doctor block endpoints ───────────────────────────────────────────────────
+
+@router.get("/blocks")
+def list_blocks(
+    doctor_id: Optional[int] = Query(None),
+    block_date: Optional[date] = Query(None),
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    query = select(DoctorBlock).where(DoctorBlock.is_active == True)
+    if doctor_id:
+        query = query.where(DoctorBlock.doctor_id == doctor_id)
+    if block_date:
+        query = query.where(DoctorBlock.block_date == block_date)
+    blocks = session.exec(query.order_by(DoctorBlock.block_date)).all()
+    result = []
+    for b in blocks:
+        doc = session.get(Doctor, b.doctor_id)
+        doc_user = session.get(User, doc.user_id) if doc else None
+        result.append({
+            **b.model_dump(),
+            "doctor_name": doc_user.full_name if doc_user else "",
+        })
+    return result
+
+
+@router.post("/blocks", status_code=201)
+def create_block(
+    body: DoctorBlockCreate,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    block = DoctorBlock(**body.model_dump(), created_by=current_user.id)
+    session.add(block)
+    session.commit()
+    session.refresh(block)
+    return block
+
+
+@router.delete("/blocks/{block_id}")
+def delete_block(
+    block_id: int,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    block = session.get(DoctorBlock, block_id)
+    if not block:
+        raise HTTPException(404, "Block not found")
+    block.is_active = False
+    session.add(block)
+    session.commit()
+    return {"message": "Block removed"}
 
 
 # ─── Create endpoints ─────────────────────────────────────────────────────────
@@ -168,6 +336,9 @@ def create_appointment(
         booked_by=current_user.id,
     )
     session.add(appt)
+    session.flush()  # get appt.id before logging
+    _log_action(session, appt.id, AuditAction.CREATED, current_user.id,
+                note=f"Booked for {body.appointment_date} token #{token}")
     session.commit()
     session.refresh(appt)
     return appt
@@ -197,6 +368,79 @@ def join_waitlist(
     return entry
 
 
+@router.post("/bulk-cancel")
+def bulk_cancel(
+    body: BulkCancelBody,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    cancelled = []
+    skipped = []
+    for appt_id in body.appointment_ids:
+        appt = session.get(Appointment, appt_id)
+        if not appt or appt.status in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+            skipped.append(appt_id)
+            continue
+        old_status = appt.status.value
+        appt.status = AppointmentStatus.CANCELLED
+        appt.cancelled_reason = body.reason
+        session.add(appt)
+        _log_action(session, appt.id, AuditAction.CANCELLED, current_user.id,
+                    note=body.reason, old_val=old_status, new_val="CANCELLED")
+        cancelled.append(appt_id)
+    session.commit()
+    return {"cancelled": cancelled, "skipped": skipped}
+
+
+@router.post("/bulk-transfer")
+def bulk_transfer(
+    body: BulkTransferBody,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    to_doc = session.get(Doctor, body.to_doctor_id)
+    if not to_doc:
+        raise HTTPException(404, "Target doctor not found")
+
+    # Collect affected dates to check capacity
+    appts_to_move = []
+    for appt_id in body.appointment_ids:
+        appt = session.get(Appointment, appt_id)
+        if appt and appt.status not in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+            appts_to_move.append(appt)
+
+    # Capacity check per date
+    dates_needed = {}
+    for appt in appts_to_move:
+        dates_needed.setdefault(appt.appointment_date, 0)
+        dates_needed[appt.appointment_date] += 1
+
+    for check_date, count_moving in dates_needed.items():
+        avail = get_slot_availability(session, body.to_doctor_id, check_date)
+        remaining_capacity = avail.get("remaining_slots", to_doc.max_patients_per_slot)
+        if count_moving > remaining_capacity:
+            raise HTTPException(
+                409,
+                f"Target doctor has only {remaining_capacity} slots available on {check_date} "
+                f"but {count_moving} appointments are being transferred."
+            )
+
+    transferred = []
+    for appt in appts_to_move:
+        old_doc_id = appt.doctor_id
+        appt.doctor_id = body.to_doctor_id
+        appt.token_number = get_next_token(session, body.to_doctor_id, appt.appointment_date)
+        session.add(appt)
+        _log_action(session, appt.id, AuditAction.TRANSFERRED, current_user.id,
+                    note=body.reason,
+                    old_val=str(old_doc_id),
+                    new_val=str(body.to_doctor_id))
+        transferred.append(appt.id)
+
+    session.commit()
+    return {"transferred": transferred, "count": len(transferred)}
+
+
 # ─── Appointment action endpoints ─────────────────────────────────────────────
 
 @router.post("/{appt_id}/checkin")
@@ -214,7 +458,6 @@ def checkin(
     appt.status = AppointmentStatus.CHECKED_IN
     appt.checked_in_at = datetime.utcnow()
 
-    # Create visit record on check-in if not already exists
     existing_visit = session.exec(select(Visit).where(Visit.appointment_id == appt.id)).first()
     if not existing_visit:
         visit = Visit(
@@ -227,6 +470,7 @@ def checkin(
         session.add(visit)
 
     session.add(appt)
+    _log_action(session, appt.id, AuditAction.CHECKED_IN, current_user.id)
     session.commit()
     session.refresh(appt)
     visit_record = session.exec(select(Visit).where(Visit.appointment_id == appt.id)).first()
@@ -237,12 +481,50 @@ def checkin(
     }
 
 
+@router.post("/{appt_id}/cancel")
+def cancel_appointment(
+    appt_id: int,
+    body: CancelBody,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    appt = session.get(Appointment, appt_id)
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    if appt.status in [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED]:
+        raise HTTPException(400, f"Cannot cancel appointment with status {appt.status}")
+
+    old_status = appt.status.value
+    appt.status = AppointmentStatus.CANCELLED
+    appt.cancelled_reason = body.reason
+    session.add(appt)
+    _log_action(session, appt.id, AuditAction.CANCELLED, current_user.id,
+                note=body.note or body.reason,
+                old_val=old_status, new_val="CANCELLED")
+
+    # Notify first waitlisted patient
+    next_wait = session.exec(
+        select(Waitlist).where(
+            Waitlist.doctor_id == appt.doctor_id,
+            Waitlist.preferred_date == appt.appointment_date,
+            Waitlist.status == WaitlistStatus.WAITING,
+        ).order_by(Waitlist.position)
+    ).first()
+    if next_wait:
+        next_wait.status = WaitlistStatus.NOTIFIED
+        next_wait.notified_at = datetime.utcnow()
+        session.add(next_wait)
+
+    session.commit()
+    return {"message": "Appointment cancelled", "waitlist_notified": next_wait is not None}
+
+
 @router.post("/{appt_id}/reschedule")
 def reschedule(
     appt_id: int,
     body: AppointmentReschedule,
     session: Session = Depends(get_session),
-    _=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     appt = session.get(Appointment, appt_id)
     if not appt:
@@ -254,6 +536,9 @@ def reschedule(
     if avail["is_full"] and avail["has_schedule"]:
         raise HTTPException(409, "Target slot is full")
 
+    old_val = json.dumps({"date": str(appt.appointment_date), "time": str(appt.appointment_time)})
+    new_val = json.dumps({"date": str(body.new_date), "time": str(body.new_time)})
+
     appt.appointment_date = body.new_date
     appt.appointment_time = body.new_time
     appt.status = AppointmentStatus.SCHEDULED
@@ -262,6 +547,8 @@ def reschedule(
         appt.cancelled_reason = f"Rescheduled: {body.reason}"
 
     session.add(appt)
+    _log_action(session, appt.id, AuditAction.RESCHEDULED, current_user.id,
+                note=body.reason, old_val=old_val, new_val=new_val)
     session.commit()
     session.refresh(appt)
     return appt
@@ -271,15 +558,15 @@ def reschedule(
 def mark_no_show(
     appt_id: int,
     session: Session = Depends(get_session),
-    _=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     appt = session.get(Appointment, appt_id)
     if not appt:
         raise HTTPException(404, "Appointment not found")
     appt.status = AppointmentStatus.NO_SHOW
     session.add(appt)
+    _log_action(session, appt.id, AuditAction.NO_SHOW, current_user.id)
 
-    # Notify first waitlisted patient for this doctor+date
     next_wait = session.exec(
         select(Waitlist).where(
             Waitlist.doctor_id == appt.doctor_id,
@@ -307,7 +594,6 @@ def notify_delay(
     if not appt:
         raise HTTPException(404, "Appointment not found")
 
-    # Mark delay on all pending appointments for same doctor on same date
     pending = session.exec(
         select(Appointment).where(
             Appointment.doctor_id == appt.doctor_id,
@@ -328,16 +614,19 @@ def update_status(
     appt_id: int,
     body: AppointmentStatusUpdate,
     session: Session = Depends(get_session),
-    _=Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     appt = session.get(Appointment, appt_id)
     if not appt:
         raise HTTPException(404, "Appointment not found")
+    old_status = appt.status.value
     appt.status = body.status
     if body.cancelled_reason:
         appt.cancelled_reason = body.cancelled_reason
     if body.status == AppointmentStatus.COMPLETED:
         appt.completed_at = datetime.utcnow()
     session.add(appt)
+    _log_action(session, appt.id, AuditAction.STATUS_CHANGED, current_user.id,
+                old_val=old_status, new_val=body.status.value)
     session.commit()
     return appt
