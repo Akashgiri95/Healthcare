@@ -86,7 +86,7 @@ export default function JourneyVitalsPage() {
 
   const saveMut = useMutation({
     mutationFn: async () => {
-      const payload: any = { visit_id: visitId };
+      const payload: any = { visit_id: visitId, patient_id: patient!.id };
       if (form.bp_systolic)     payload.bp_systolic     = parseInt(form.bp_systolic);
       if (form.bp_diastolic)    payload.bp_diastolic    = parseInt(form.bp_diastolic);
       if (form.pulse)           payload.pulse           = parseInt(form.pulse);

@@ -389,6 +389,7 @@ class Consultation(SQLModel, table=True):
     referred_to: Optional[str] = None
     referred_doctor: Optional[int] = Field(default=None, foreign_key="doctors.id")
 
+    consultation_no: Optional[str] = Field(default=None, index=True)
     is_finalized: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     finalized_at: Optional[datetime] = None
