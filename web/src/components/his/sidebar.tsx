@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard, Users, CalendarDays, Stethoscope,
   FlaskConical, Receipt, Pill, Settings, LogOut, Activity,
-  MonitorCheck, GitBranch, UserPlus, ChevronDown,
+  MonitorCheck, GitBranch, UserPlus, ChevronDown, LayoutList,
 } from "lucide-react";
 
 type NavItem = { type: "item"; href: string; label: string; icon: any; roles: string[] };
@@ -34,6 +34,7 @@ const NAV: NavEntry[] = [
   { type: "item", href: "/opd", label: "OPD Queue", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
   { type: "item", href: "/patients", label: "Patients", icon: Users, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
   { type: "item", href: "/appointments", label: "Appointments", icon: CalendarDays, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
+  { type: "item", href: "/appointments/schedule", label: "Doctor Schedule", icon: LayoutList, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
   { type: "item", href: "/doctor", label: "Doctor Desk", icon: Stethoscope, roles: ["DOCTOR", "ADMIN"] },
   { type: "item", href: "/lab", label: "Lab Orders", icon: FlaskConical, roles: ["ADMIN", "DOCTOR", "NURSE", "LAB_TECHNICIAN"] },
   { type: "item", href: "/billing", label: "Billing", icon: Receipt, roles: ["ADMIN", "BILLING", "RECEPTIONIST"] },

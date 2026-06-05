@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import {
   Search, UserPlus, X, ChevronRight, Ticket,
   AlertTriangle, CalendarX, Users, Phone, Droplet, IndianRupee,
+  CheckCircle2, Printer, Clock, Building2, User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,11 @@ export default function JourneyAppointmentPage() {
     debounceRef.current = setTimeout(() => setDebouncedQ(q), 350);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q]);
+
+  // ── Success state ─────────────────────────────────────────────────────────────
+  const [bookedResult, setBookedResult] = useState<{
+    appt: any; visitNo: string; doctorName: string; deptName: string;
+  } | null>(null);
 
   // ── Booking form ─────────────────────────────────────────────────────────────
   const [apptType, setApptType] = useState("WALK_IN");
@@ -152,8 +158,12 @@ export default function JourneyAppointmentPage() {
         visitId,
         visitNo || "",
       );
-      toast.success(`Token #${appt.token_number} · ${visitNo} — proceed to registration`);
-      router.push("/opd/journey/register");
+      setBookedResult({
+        appt,
+        visitNo: visitNo || "",
+        doctorName: doc?.full_name || "",
+        deptName: dept?.name || doc?.department_name || "",
+      });
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Booking failed"),
   });
@@ -182,6 +192,110 @@ export default function JourneyAppointmentPage() {
 
   const activeBlock = (blocks as any[]).find(b => b.is_active);
   const slotPct = slotInfo ? slotInfo.booked / Math.max(slotInfo.max, 1) : 0;
+
+  // ── Success screen ────────────────────────────────────────────────────────────
+  if (bookedResult) {
+    const { appt, visitNo, doctorName, deptName } = bookedResult;
+    return (
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Topbar title="OPD Journey — Book Appointment" />
+          <JourneyBanner currentStep={1} />
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className="w-full max-w-sm space-y-4">
+
+              {/* Token card */}
+              <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-lg overflow-hidden">
+                {/* Green header */}
+                <div className="bg-green-500 px-6 py-4 flex items-center gap-3">
+                  <CheckCircle2 className="w-6 h-6 text-white shrink-0" />
+                  <div>
+                    <p className="text-white font-semibold">Appointment Confirmed</p>
+                    <p className="text-green-100 text-xs font-mono">{appt.appointment_no}</p>
+                  </div>
+                </div>
+
+                {/* Token number — big */}
+                <div className="px-6 py-6 text-center border-b border-dashed border-blue-100">
+                  <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Queue Token</p>
+                  <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-blue-50 border-4 border-blue-200">
+                    <div>
+                      <p className="text-xs text-blue-400 font-medium">#</p>
+                      <p className="text-5xl font-black text-blue-700 leading-none">{appt.token_number}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">Show this number at the counter</p>
+                </div>
+
+                {/* Details */}
+                <div className="px-6 py-4 space-y-2.5">
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="text-gray-500 w-20 shrink-0 text-xs">Patient</span>
+                    <span className="font-medium text-gray-800">
+                      {selectedPatient?.first_name} {selectedPatient?.last_name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="text-gray-500 w-20 shrink-0 text-xs">Doctor</span>
+                    <span className="font-medium text-gray-800">{doctorName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="text-gray-500 w-20 shrink-0 text-xs">Department</span>
+                    <span className="font-medium text-gray-800">{deptName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="text-gray-500 w-20 shrink-0 text-xs">Time</span>
+                    <span className="font-medium text-gray-800">
+                      {appt.appointment_date} · {appt.appointment_time?.slice(0, 5)}
+                    </span>
+                  </div>
+                  {visitNo && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Ticket className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                      <span className="text-gray-500 w-20 shrink-0 text-xs">Visit No.</span>
+                      <span className="font-mono text-gray-800">{visitNo}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* SMS note */}
+                <div className="px-6 py-3 bg-green-50 border-t border-green-100">
+                  <p className="text-xs text-green-700">
+                    SMS sent to {selectedPatient?.phone?.replace(/(\d{2})\d{6}(\d{2})/, "$1XXXXXX$2")}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1.5 text-gray-500"
+                  onClick={() => window.print()}
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Print Token
+                </Button>
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  onClick={() => router.push("/opd/journey/register")}
+                >
+                  Proceed to Registration
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">

@@ -253,9 +253,24 @@ export default function NewAppointmentPage() {
           <Topbar title="Appointment Booked" />
           <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
             <div className="max-w-xl mx-auto space-y-4">
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle className="w-5 h-5" />
-                <span className="font-semibold">Appointment confirmed</span>
+
+              {/* Token banner */}
+              <div className="bg-white rounded-2xl border-2 border-blue-100 shadow-sm flex items-center gap-6 px-6 py-5">
+                <div className="flex items-center justify-center w-20 h-20 rounded-full bg-blue-50 border-4 border-blue-200 shrink-0">
+                  <div className="text-center">
+                    <p className="text-[10px] text-blue-400 font-medium leading-none">#</p>
+                    <p className="text-4xl font-black text-blue-700 leading-none">{bookedAppt.token_number}</p>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 text-green-600 mb-1">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="font-semibold text-sm">Appointment confirmed</span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-mono mb-0.5">{bookedAppt.appointment_no}</p>
+                  <p className="text-sm font-medium text-gray-800">{selectedDoctor.full_name}</p>
+                  <p className="text-xs text-gray-500">{bookedAppt.appointment_date} · {bookedAppt.appointment_time?.slice(0,5)}</p>
+                </div>
               </div>
 
               {/* FIX 2 — Same-day walk-in banner */}
