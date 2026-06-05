@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 
 export function Topbar({ title }: { title: string }) {
-  const [time, setTime] = useState(new Date());
+  const [time, setTime] = useState<Date | null>(null);
 
   useEffect(() => {
+    setTime(new Date());
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
@@ -18,7 +19,7 @@ export function Topbar({ title }: { title: string }) {
       <div className="flex items-center gap-4 text-sm text-gray-500">
         <span className="flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5" />
-          {format(time, "dd MMM yyyy, hh:mm:ss aa")}
+          {time ? format(time, "dd MMM yyyy, hh:mm:ss aa") : ""}
         </span>
         <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-xs">
           LIVE
