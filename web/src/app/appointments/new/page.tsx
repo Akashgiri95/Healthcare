@@ -18,7 +18,7 @@ import Link from "next/link";
 import {
   Search, UserPlus, X, ChevronLeft, ChevronRight, Ticket,
   AlertTriangle, CalendarX, Users, Phone, Printer,
-  CheckCircle, CheckCircle2, Clock, Building2, User, ArrowRight,
+  CheckCircle, CheckCircle2, Clock, User, ArrowRight,
   ShieldCheck, Briefcase, Star, Stethoscope, Timer,
   UserCheck, Calendar, RefreshCw, Zap, Video,
 } from "lucide-react";
@@ -28,34 +28,34 @@ import { cn } from "@/lib/utils";
 
 const APPT_TYPES = [
   {
-    value: "WALK_IN", label: "Walk-in", desc: "Now", icon: UserCheck,
-    active: "bg-blue-600 border-blue-600 text-white",
-    inactive: "bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50/40",
-    iconCls: "text-blue-500",
+    value: "WALK_IN", label: "Walk-in", desc: "Immediate", icon: UserCheck,
+    active: "bg-blue-600 border-blue-600 text-white shadow-blue-200 shadow-md",
+    inactive: "bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50/50",
+    iconActive: "text-white", iconInactive: "text-blue-500",
   },
   {
-    value: "SCHEDULED", label: "Scheduled", desc: "Future", icon: Calendar,
-    active: "bg-indigo-600 border-indigo-600 text-white",
-    inactive: "bg-white border-gray-200 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50/40",
-    iconCls: "text-indigo-500",
+    value: "SCHEDULED", label: "Scheduled", desc: "Future date", icon: Calendar,
+    active: "bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 shadow-md",
+    inactive: "bg-white border-gray-200 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50/50",
+    iconActive: "text-white", iconInactive: "text-indigo-500",
   },
   {
-    value: "FOLLOW_UP", label: "Follow-up", desc: "Return", icon: RefreshCw,
-    active: "bg-green-600 border-green-600 text-white",
-    inactive: "bg-white border-gray-200 text-gray-700 hover:border-green-300 hover:bg-green-50/40",
-    iconCls: "text-green-500",
+    value: "FOLLOW_UP", label: "Follow-up", desc: "Returning patient", icon: RefreshCw,
+    active: "bg-emerald-600 border-emerald-600 text-white shadow-emerald-200 shadow-md",
+    inactive: "bg-white border-gray-200 text-gray-700 hover:border-emerald-300 hover:bg-emerald-50/50",
+    iconActive: "text-white", iconInactive: "text-emerald-500",
   },
   {
-    value: "EMERGENCY", label: "Emergency", desc: "Priority", icon: Zap,
-    active: "bg-red-600 border-red-600 text-white",
-    inactive: "bg-red-50 border-red-200 text-red-700 hover:border-red-400",
-    iconCls: "text-red-500",
+    value: "EMERGENCY", label: "Emergency", desc: "Priority case", icon: Zap,
+    active: "bg-red-600 border-red-600 text-white shadow-red-200 shadow-md",
+    inactive: "bg-red-50/70 border-red-200 text-red-700 hover:border-red-400",
+    iconActive: "text-white", iconInactive: "text-red-500",
   },
   {
-    value: "TELECONSULT", label: "Teleconsult", desc: "Remote", icon: Video,
-    active: "bg-violet-600 border-violet-600 text-white",
-    inactive: "bg-white border-gray-200 text-gray-700 hover:border-violet-300 hover:bg-violet-50/40",
-    iconCls: "text-violet-500",
+    value: "TELECONSULT", label: "Tele-consult", desc: "Remote visit", icon: Video,
+    active: "bg-violet-600 border-violet-600 text-white shadow-violet-200 shadow-md",
+    inactive: "bg-white border-gray-200 text-gray-700 hover:border-violet-300 hover:bg-violet-50/50",
+    iconActive: "text-white", iconInactive: "text-violet-500",
   },
 ];
 
@@ -66,10 +66,10 @@ const COMPLAINT_TAGS = [
 ];
 
 const DEPT_PALETTE = [
-  "bg-blue-100 text-blue-700",    "bg-rose-100 text-rose-700",
+  "bg-blue-100 text-blue-700",     "bg-rose-100 text-rose-700",
   "bg-orange-100 text-orange-700", "bg-violet-100 text-violet-700",
   "bg-emerald-100 text-emerald-700", "bg-teal-100 text-teal-700",
-  "bg-pink-100 text-pink-700",    "bg-amber-100 text-amber-700",
+  "bg-pink-100 text-pink-700",     "bg-amber-100 text-amber-700",
 ];
 
 function deptColor(name: string) {
@@ -86,52 +86,19 @@ const TIME_PERIODS = [
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function CardSection({ title, children, action }: {
+  title: string; children: React.ReactNode; action?: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-3 mb-3">
-      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
-        {children}
-      </span>
-      <div className="flex-1 h-px bg-gray-100" />
-    </div>
-  );
-}
-
-function StepPrompt({ n, label, active }: { n: number; label: string; active: boolean }) {
-  return (
-    <div className={cn(
-      "flex items-center gap-2.5 rounded-xl px-3 py-2.5 border",
-      active ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-100"
-    )}>
-      <div className={cn(
-        "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
-        active ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-400"
-      )}>{n}</div>
-      <p className={cn("text-xs", active ? "text-blue-700 font-medium" : "text-gray-400")}>{label}</p>
-    </div>
-  );
-}
-
-function ProgressBar({ step }: { step: number }) {
-  const pct = Math.round(((step - 1) / 3) * 100);
-  const labels = ["Patient", "Doctor", "Time", "Ready"];
-  return (
-    <div className="px-4 pt-3 pb-2 border-b space-y-1.5">
-      <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
-        <div className="h-full bg-blue-500 rounded-full transition-all duration-500"
-          style={{ width: `${pct}%` }} />
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50 bg-gray-50/40">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">{title}</p>
+        {action}
       </div>
-      <div className="flex justify-between">
-        {labels.map((label, i) => (
-          <span key={label} className={cn("text-[9px] font-semibold",
-            i + 1 <= step ? "text-blue-600" : "text-gray-300")}>{label}</span>
-        ))}
-      </div>
+      <div className="p-5">{children}</div>
     </div>
   );
 }
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 type Patient = {
   id: number; uhid: string; first_name: string; last_name: string;
@@ -195,7 +162,7 @@ export default function NewAppointmentPage() {
   const { setPatient, setAppointment, reset } = useJourneyStore();
   const today = format(new Date(), "yyyy-MM-dd");
 
-  // ── Patient ───────────────────────────────────────────────────────────────────
+  // ── State ─────────────────────────────────────────────────────────────────────
   const [q, setQ]                   = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -209,7 +176,6 @@ export default function NewAppointmentPage() {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q]);
 
-  // ── Booking form ──────────────────────────────────────────────────────────────
   const [apptType, setApptType]         = useState("WALK_IN");
   const [deptId, setDeptId]             = useState("");
   const [doctorId, setDoctorId]         = useState("");
@@ -221,12 +187,9 @@ export default function NewAppointmentPage() {
   useEffect(() => { setDoctorId(""); setApptTime(""); }, [deptId]);
   useEffect(() => { if (apptType === "WALK_IN") setApptDate(today); setApptTime(""); }, [apptType]);
 
-  // ── Success state ─────────────────────────────────────────────────────────────
-  const [bookedAppt, setBookedAppt]         = useState<any>(null);
-  const [bookedDoctor, setBookedDoctor]     = useState<any>(null);
-  const [bookedPatient, setBookedPatient]   = useState<Patient | null>(null);
-
-  // ── Waitlist ──────────────────────────────────────────────────────────────────
+  const [bookedAppt, setBookedAppt]       = useState<any>(null);
+  const [bookedDoctor, setBookedDoctor]   = useState<any>(null);
+  const [bookedPatient, setBookedPatient] = useState<Patient | null>(null);
   const [showWaitlist, setShowWaitlist]   = useState(false);
   const [waitlistNotes, setWaitlistNotes] = useState("");
   const [waitlistDone, setWaitlistDone]   = useState<{ position: number } | null>(null);
@@ -237,41 +200,34 @@ export default function NewAppointmentPage() {
     queryFn: () => api.get(`/api/patients?q=${debouncedQ}&limit=10`).then(r => r.data),
     enabled: debouncedQ.length >= 2,
   });
-
   const { data: patientDetail } = useQuery<any>({
     queryKey: ["patient-detail", selectedPatient?.id],
     queryFn: () => api.get(`/api/patients/${selectedPatient!.id}`).then(r => r.data),
     enabled: !!selectedPatient?.id,
   });
-
   const { data: departments = [] } = useQuery<any[]>({
     queryKey: ["departments"],
     queryFn: () => api.get("/api/masters/departments").then(r => r.data),
   });
-
   const { data: doctors = [] } = useQuery<any[]>({
     queryKey: ["doctors", deptId],
     queryFn: () => api.get(`/api/masters/doctors${deptId ? `?department_id=${deptId}` : ""}`).then(r => r.data),
   });
-
   const { data: slotAvail } = useQuery<any>({
     queryKey: ["slot-avail", doctorId, apptDate],
     queryFn: () => api.get(`/api/appointments/available-slots?doctor_id=${doctorId}&date=${apptDate}`).then(r => r.data),
     enabled: !!(doctorId && apptDate),
   });
-
   const { data: blocks = [] } = useQuery<any[]>({
     queryKey: ["doc-blocks", doctorId, apptDate],
     queryFn: () => api.get(`/api/appointments/blocks?doctor_id=${doctorId}&block_date=${apptDate}`).then(r => r.data),
     enabled: !!(doctorId && apptDate),
   });
-
   const { data: dupCheck } = useQuery<any>({
     queryKey: ["dup-check", selectedPatient?.id, doctorId, apptDate],
     queryFn: () => api.get(`/api/appointments/duplicate-check?patient_id=${selectedPatient!.id}&doctor_id=${doctorId}&check_date=${apptDate}`).then(r => r.data),
     enabled: !!(selectedPatient && doctorId && apptDate),
   });
-
   const { data: feeEstimate } = useQuery<any>({
     queryKey: ["fee-estimate", selectedPatient?.id, doctorId],
     queryFn: () => api.get(`/api/appointments/fee-estimate?patient_id=${selectedPatient!.id}&doctor_id=${doctorId}`).then(r => r.data),
@@ -286,13 +242,13 @@ export default function NewAppointmentPage() {
   }, [feeEstimate?.visit_type]);
 
   // ── Derived ───────────────────────────────────────────────────────────────────
-  const selectedDoc  = (doctors as any[]).find(d => d.id === Number(doctorId));
-  const activeBlock  = (blocks as any[]).find(b => b.is_active);
-  const slotPct      = slotAvail ? slotAvail.booked / Math.max(slotAvail.max, 1) : 0;
-  const canBook      = !!(selectedPatient && doctorId && (apptType === "WALK_IN" || apptTime));
-  const isSameDay    = bookedAppt?.appointment_date === today;
+  const selectedDoc = (doctors as any[]).find(d => d.id === Number(doctorId));
+  const activeBlock = (blocks as any[]).find(b => b.is_active);
+  const slotPct     = slotAvail ? slotAvail.booked / Math.max(slotAvail.max, 1) : 0;
+  const canBook     = !!(selectedPatient && doctorId && (apptType === "WALK_IN" || apptTime));
+  const isSameDay   = bookedAppt?.appointment_date === today;
+  const pd          = patientDetail || selectedPatient;
 
-  const pd = patientDetail || selectedPatient;
   const insuranceInfo = pd?.ayushman_card_no
     ? { label: "Ayushman Bharat", cls: "bg-green-50 text-green-700 border-green-200" }
     : pd?.insurance_provider
@@ -306,6 +262,7 @@ export default function NewAppointmentPage() {
     : null;
 
   const summaryStep = !selectedPatient ? 1 : !doctorId ? 2 : (apptType !== "WALK_IN" && !apptTime) ? 3 : 4;
+  const currentType = APPT_TYPES.find(t => t.value === apptType);
 
   // ── Mutations ─────────────────────────────────────────────────────────────────
   const waitlistMut = useMutation({
@@ -317,7 +274,6 @@ export default function NewAppointmentPage() {
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Waitlist failed"),
   });
-
   const quickRegMut = useMutation({
     mutationFn: (body: typeof qrForm) => api.post("/api/patients/quick-register", body).then(r => r.data),
     onSuccess: (data) => {
@@ -329,7 +285,6 @@ export default function NewAppointmentPage() {
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Registration failed"),
   });
-
   const bookMut = useMutation({
     mutationFn: (body: any) => api.post("/api/appointments", body).then(r => r.data),
     onSuccess: (data) => {
@@ -340,25 +295,19 @@ export default function NewAppointmentPage() {
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Booking failed"),
   });
-
   const checkinMut = useMutation({
     mutationFn: (apptId: number) => api.post(`/api/appointments/${apptId}/checkin`).then(r => r.data),
     onSuccess: (res) => {
       reset();
       setPatient({
-        id: bookedPatient!.id,           uhid: bookedPatient!.uhid,
+        id: bookedPatient!.id, uhid: bookedPatient!.uhid,
         name: `${bookedPatient!.first_name} ${bookedPatient!.last_name}`,
-        gender: bookedPatient!.gender,   dob: bookedPatient!.date_of_birth,
-        phone: bookedPatient!.phone,     blood_group: bookedPatient!.blood_group,
+        gender: bookedPatient!.gender, dob: bookedPatient!.date_of_birth,
+        phone: bookedPatient!.phone, blood_group: bookedPatient!.blood_group,
       });
       setAppointment(
-        {
-          id: bookedAppt.id,
-          appointment_no: bookedAppt.appointment_no,
-          token_number: bookedAppt.token_number,
-          doctor_name: bookedDoctor?.full_name ?? "",
-          department_name: bookedDoctor?.department_name ?? "",
-        },
+        { id: bookedAppt.id, appointment_no: bookedAppt.appointment_no, token_number: bookedAppt.token_number,
+          doctor_name: bookedDoctor?.full_name ?? "", department_name: bookedDoctor?.department_name ?? "" },
         res.visit_id, res.visit_no,
       );
       toast.success("Checked in — going to vitals");
@@ -402,7 +351,6 @@ export default function NewAppointmentPage() {
           <Topbar title="Appointment Booked" />
           <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
             <div className="max-w-xl mx-auto space-y-4">
-
               <div className="bg-white rounded-2xl border-2 border-blue-100 shadow-sm flex items-center gap-6 px-6 py-5">
                 <div className="flex items-center justify-center w-20 h-20 rounded-full bg-blue-50 border-4 border-blue-200 shrink-0">
                   <div className="text-center">
@@ -417,19 +365,14 @@ export default function NewAppointmentPage() {
                   </div>
                   <p className="text-xs text-gray-500 font-mono mb-0.5">{bookedAppt.appointment_no}</p>
                   <p className="text-sm font-semibold text-gray-800">{bookedDoctor.full_name}</p>
-                  <p className="text-xs text-gray-500">
-                    {fmtDate(bookedAppt.appointment_date)} · {bookedAppt.appointment_time?.slice(0, 5)}
-                  </p>
+                  <p className="text-xs text-gray-500">{fmtDate(bookedAppt.appointment_date)} · {bookedAppt.appointment_time?.slice(0, 5)}</p>
                 </div>
               </div>
-
               {isSameDay && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 flex items-center justify-between gap-4">
                   <div>
                     <p className="font-semibold text-blue-800">Patient is here today?</p>
-                    <p className="text-xs text-blue-600 mt-0.5">
-                      Check in now and start the OPD journey — vitals → doctor → billing.
-                    </p>
+                    <p className="text-xs text-blue-600 mt-0.5">Check in now and start the OPD journey — vitals → doctor → billing.</p>
                   </div>
                   <Button className="bg-blue-600 hover:bg-blue-700 shrink-0 gap-1.5"
                     disabled={checkinMut.isPending} onClick={() => checkinMut.mutate(bookedAppt.id)}>
@@ -438,24 +381,18 @@ export default function NewAppointmentPage() {
                   </Button>
                 </div>
               )}
-
               <AppointmentSlip appt={bookedAppt} patient={bookedPatient} doctor={bookedDoctor} />
-
               <div className="flex gap-3 flex-wrap">
                 <Button className="gap-1.5" onClick={() => window.print()}>
                   <Printer className="w-4 h-4" /> Print Slip
                 </Button>
-                <Button variant="outline" onClick={() => router.push("/appointments")}>
-                  Back to Appointments
-                </Button>
+                <Button variant="outline" onClick={() => router.push("/appointments")}>Back to Appointments</Button>
                 <Button variant="ghost" onClick={() => {
                   setBookedAppt(null); setBookedDoctor(null); setBookedPatient(null);
                   setSelectedPatient(null); setDoctorId(""); setDeptId("");
                   setChiefComplaint(""); setQ(""); setDebouncedQ("");
                   setApptTime(""); setWaitlistDone(null);
-                }}>
-                  Book Another
-                </Button>
+                }}>Book Another</Button>
               </div>
             </div>
           </main>
@@ -466,7 +403,7 @@ export default function NewAppointmentPage() {
 
   // ── Main layout ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-slate-50">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Topbar title="Book Appointment" />
@@ -475,90 +412,94 @@ export default function NewAppointmentPage() {
 
           {/* ── LEFT: Patient panel ────────────────────────────────────────────── */}
           <div className="w-64 bg-white border-r flex flex-col shrink-0">
-            <div className="px-4 py-2.5 border-b bg-gray-50 flex items-center justify-between">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Patient</p>
-              <Link href="/appointments" className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-600">
-                <ChevronLeft className="w-3 h-3" /> Back
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-700">Patient</p>
+              <Link href="/appointments" className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition-colors">
+                <ChevronLeft className="w-3.5 h-3.5" /> Back
               </Link>
             </div>
 
             {selectedPatient ? (
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-blue-700 font-bold text-sm select-none">
-                    {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+              <div className="flex-1 overflow-y-auto">
+                {/* Patient hero */}
+                <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-4 py-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-base select-none border-2 border-white/30 shrink-0">
+                      {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-white font-bold text-sm leading-tight truncate">
+                          {selectedPatient.first_name} {selectedPatient.last_name}
+                        </p>
+                        {selectedPatient.is_vip && <Star className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300 shrink-0" />}
+                      </div>
+                      <p className="text-blue-100 text-xs font-mono mt-0.5">{selectedPatient.uhid}</p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-sm font-bold text-gray-900 leading-tight">
-                        {selectedPatient.first_name} {selectedPatient.last_name}
+                </div>
+
+                {/* Patient details */}
+                <div className="p-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                      <p className="text-[10px] text-gray-400 uppercase font-semibold mb-0.5">Age / Sex</p>
+                      <p className="font-bold text-gray-800 text-sm">{calcAge(selectedPatient.date_of_birth)} / {selectedPatient.gender[0]}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                      <p className="text-[10px] text-gray-400 uppercase font-semibold mb-0.5">Blood Group</p>
+                      <p className={cn("font-bold text-sm", selectedPatient.blood_group ? "text-red-600" : "text-gray-400")}>
+                        {selectedPatient.blood_group || "—"}
                       </p>
-                      {selectedPatient.is_vip && <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-400 shrink-0" />}
                     </div>
-                    <p className="text-xs font-mono text-gray-400 mt-0.5">{selectedPatient.uhid}</p>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  <div className="bg-gray-50 rounded-lg px-2.5 py-2">
-                    <p className="text-[10px] text-gray-400 uppercase mb-0.5">Age / Sex</p>
-                    <p className="font-bold text-gray-800">{calcAge(selectedPatient.date_of_birth)} / {selectedPatient.gender[0]}</p>
+                  <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-xl px-3 py-2.5">
+                    <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="truncate">{selectedPatient.phone}</span>
                   </div>
-                  <div className="bg-gray-50 rounded-lg px-2.5 py-2">
-                    <p className="text-[10px] text-gray-400 uppercase mb-0.5">Blood Group</p>
-                    <p className={cn("font-bold", selectedPatient.blood_group ? "text-red-600" : "text-gray-400")}>
-                      {selectedPatient.blood_group || "Unknown"}
-                    </p>
+
+                  <div className={cn("flex items-center gap-2 border rounded-xl px-3 py-2 text-xs font-medium", insuranceInfo.cls)}>
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{insuranceInfo.label}</span>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <Phone className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  {selectedPatient.phone}
-                </div>
-
-                <div className={cn("flex items-center gap-1.5 border rounded-lg px-2.5 py-1.5 text-xs font-medium", insuranceInfo.cls)}>
-                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">{insuranceInfo.label}</span>
-                </div>
-
-                {feeEstimate?.last_visit_date && (
-                  <div className="border border-blue-100 rounded-lg px-2.5 py-2 bg-blue-50">
-                    <p className="text-[10px] text-blue-400 uppercase font-semibold">Last Visit</p>
-                    <p className="text-xs font-bold text-blue-800 mt-0.5">{feeEstimate.days_since} days ago</p>
-                    <p className="text-[10px] text-blue-500">{feeEstimate.last_visit_date}</p>
-                  </div>
-                )}
-
-                {dupCheck?.duplicate && dupCheck.appointment && (
-                  <div className="border border-amber-200 bg-amber-50 rounded-lg px-2.5 py-2">
-                    <div className="flex items-center gap-1.5 text-amber-700 text-xs font-semibold mb-1">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      Existing appointment
+                  {feeEstimate?.last_visit_date && (
+                    <div className="border border-blue-100 rounded-xl px-3 py-2.5 bg-blue-50">
+                      <p className="text-[10px] text-blue-500 uppercase font-semibold">Last Visit</p>
+                      <p className="text-sm font-bold text-blue-800 mt-0.5">{feeEstimate.days_since} days ago</p>
+                      <p className="text-xs text-blue-400">{feeEstimate.last_visit_date}</p>
                     </div>
-                    <p className="text-[10px] text-amber-600">
-                      Token #{dupCheck.appointment.token_number} · {dupCheck.appointment.appointment_time?.slice(0, 5)} · {dupCheck.appointment.status}
-                    </p>
-                  </div>
-                )}
+                  )}
 
-                <button
-                  onClick={() => { setSelectedPatient(null); setQ(""); setDebouncedQ(""); }}
-                  className="text-xs text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  ← Change patient
-                </button>
+                  {dupCheck?.duplicate && dupCheck.appointment && (
+                    <div className="border border-amber-200 bg-amber-50 rounded-xl px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 text-amber-700 text-xs font-semibold mb-1">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        Existing appointment
+                      </div>
+                      <p className="text-xs text-amber-600">
+                        Token #{dupCheck.appointment.token_number} · {dupCheck.appointment.appointment_time?.slice(0, 5)} · {dupCheck.appointment.status}
+                      </p>
+                    </div>
+                  )}
+
+                  <button onClick={() => { setSelectedPatient(null); setQ(""); setDebouncedQ(""); }}
+                    className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                    ← Change patient
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex-1 flex flex-col">
                 <div className="px-3 py-3 border-b">
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" />
+                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                     <Input placeholder="Name, phone, UHID…" value={q}
-                      onChange={e => setQ(e.target.value)} className="pl-8 h-8 text-sm" autoFocus />
+                      onChange={e => setQ(e.target.value)} className="pl-9 h-9 text-sm" autoFocus />
                     {q && (
-                      <button onClick={() => { setQ(""); setDebouncedQ(""); }} className="absolute right-2 top-2">
-                        <X className="w-3.5 h-3.5 text-gray-400" />
+                      <button onClick={() => { setQ(""); setDebouncedQ(""); }} className="absolute right-2.5 top-2.5">
+                        <X className="w-4 h-4 text-gray-400" />
                       </button>
                     )}
                   </div>
@@ -566,20 +507,23 @@ export default function NewAppointmentPage() {
                 <div className="flex-1 overflow-y-auto">
                   {isFetching && <p className="text-xs text-gray-400 px-4 py-3">Searching…</p>}
                   {debouncedQ.length >= 2 && !isFetching && (searchResults?.data || []).length === 0 && (
-                    <p className="text-xs text-gray-400 px-4 py-4 text-center">No patients found</p>
+                    <p className="text-xs text-gray-400 px-4 py-6 text-center">No patients found</p>
                   )}
                   {(searchResults?.data || []).map((p) => (
                     <button key={p.id}
                       onClick={() => { setSelectedPatient(p); setQ(""); setDebouncedQ(""); setShowQuickReg(false); }}
-                      className="w-full text-left px-4 py-2.5 border-b hover:bg-blue-50 transition-colors">
-                      <p className="text-sm font-medium text-gray-900">{p.first_name} {p.last_name}</p>
-                      <p className="text-xs text-gray-500">{p.uhid} · {p.gender[0]}/{calcAge(p.date_of_birth)} · {p.phone}</p>
+                      className="w-full text-left px-4 py-3 border-b hover:bg-blue-50 transition-colors group">
+                      <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">{p.first_name} {p.last_name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{p.uhid} · {p.gender[0]}/{calcAge(p.date_of_birth)} · {p.phone}</p>
                     </button>
                   ))}
                   {debouncedQ.length < 2 && !showQuickReg && (
-                    <div className="px-4 py-8 text-center text-gray-400">
-                      <Search className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                      <p className="text-xs">Type 2+ characters</p>
+                    <div className="px-4 py-10 text-center text-gray-400">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                        <Search className="w-5 h-5 text-gray-300" />
+                      </div>
+                      <p className="text-xs font-medium text-gray-400">Search by name, phone, or UHID</p>
+                      <p className="text-xs text-gray-300 mt-0.5">Type at least 2 characters</p>
                     </div>
                   )}
                 </div>
@@ -587,82 +531,80 @@ export default function NewAppointmentPage() {
             )}
 
             {/* Quick register */}
-            <div className="border-t p-3">
+            <div className="border-t p-3 bg-gray-50/50">
               {showQuickReg ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-amber-700">Quick Register</p>
-                  <Input placeholder="First name *" className="h-7 text-xs" value={qrForm.first_name}
+                  <Input placeholder="First name *" className="h-8 text-xs" value={qrForm.first_name}
                     onChange={e => setQrForm(f => ({ ...f, first_name: e.target.value }))} />
-                  <Input placeholder="Last name *" className="h-7 text-xs" value={qrForm.last_name}
+                  <Input placeholder="Last name *" className="h-8 text-xs" value={qrForm.last_name}
                     onChange={e => setQrForm(f => ({ ...f, last_name: e.target.value }))} />
-                  <Input placeholder="Phone *" className="h-7 text-xs" value={qrForm.phone}
+                  <Input placeholder="Phone *" className="h-8 text-xs" value={qrForm.phone}
                     onChange={e => setQrForm(f => ({ ...f, phone: e.target.value }))} />
                   <div className="grid grid-cols-2 gap-1.5">
                     <Select value={qrForm.gender} onValueChange={v => setQrForm(f => ({ ...f, gender: v ?? "MALE" }))}>
-                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="MALE">Male</SelectItem>
                         <SelectItem value="FEMALE">Female</SelectItem>
                         <SelectItem value="OTHER">Other</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input type="date" className="h-7 text-xs" max={today} value={qrForm.date_of_birth}
+                    <Input type="date" className="h-8 text-xs" max={today} value={qrForm.date_of_birth}
                       onChange={e => setQrForm(f => ({ ...f, date_of_birth: e.target.value }))} />
                   </div>
                   <div className="flex gap-1.5">
-                    <Button size="sm" className="flex-1 h-7 text-xs bg-amber-600 hover:bg-amber-700"
+                    <Button size="sm" className="flex-1 h-8 text-xs bg-amber-600 hover:bg-amber-700"
                       disabled={!qrForm.first_name || !qrForm.last_name || !qrForm.phone || !qrForm.date_of_birth || quickRegMut.isPending}
                       onClick={() => quickRegMut.mutate(qrForm)}>
                       Register & Select
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowQuickReg(false)}>Cancel</Button>
+                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setShowQuickReg(false)}>Cancel</Button>
                   </div>
                 </div>
               ) : (
-                <Button variant="outline" size="sm" className="w-full text-xs h-7"
+                <Button variant="outline" size="sm" className="w-full text-xs h-8 border-dashed"
                   onClick={() => { setShowQuickReg(true); setSelectedPatient(null); }}>
-                  <UserPlus className="w-3.5 h-3.5 mr-1.5" /> Quick Register
+                  <UserPlus className="w-3.5 h-3.5 mr-1.5" /> Quick Register New Patient
                 </Button>
               )}
             </div>
           </div>
 
           {/* ── CENTER: Booking form ───────────────────────────────────────────── */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
             {/* Doctor block alert */}
             {activeBlock && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-3.5 text-sm text-red-700">
                 <CalendarX className="w-4 h-4 shrink-0" />
-                Doctor is on <strong className="mx-1">{activeBlock.reason}</strong> on this date.
-                {activeBlock.notes && <span className="text-red-500 ml-1">{activeBlock.notes}</span>}
+                <span>Doctor is on <strong>{activeBlock.reason}</strong> on this date.{activeBlock.notes && ` ${activeBlock.notes}`}</span>
               </div>
             )}
 
-            {/* 1 — Appointment type */}
-            <div>
-              <SectionLabel>Appointment Type</SectionLabel>
-              <div className="grid grid-cols-5 gap-2">
+            {/* 1 — Visit type */}
+            <CardSection title="Type of Visit">
+              <div className="grid grid-cols-5 gap-2.5">
                 {APPT_TYPES.map(t => (
                   <button key={t.value} onClick={() => setApptType(t.value)}
                     className={cn(
-                      "p-3 rounded-xl border-2 text-left transition-all",
+                      "flex flex-col items-start p-4 rounded-xl border-2 transition-all min-h-[92px]",
                       apptType === t.value ? t.active : t.inactive
                     )}>
-                    <t.icon className={cn("w-4 h-4 mb-2", apptType === t.value ? "text-white/90" : t.iconCls)} />
+                    <t.icon className={cn("w-5 h-5 mb-3", apptType === t.value ? t.iconActive : t.iconInactive)} />
                     <p className={cn("text-xs font-bold leading-tight", apptType !== t.value && "text-gray-800")}>{t.label}</p>
-                    <p className={cn("text-[10px] mt-0.5", apptType === t.value ? "text-white/70" : "text-gray-400")}>{t.desc}</p>
+                    <p className={cn("text-[10px] mt-0.5 leading-tight", apptType === t.value ? "text-white/70" : "text-gray-400")}>{t.desc}</p>
                   </button>
                 ))}
               </div>
-            </div>
+            </CardSection>
 
-            {/* 2 — Department filter + doctor cards */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Doctor</span>
+            {/* 2 — Doctor selection */}
+            <CardSection
+              title="Doctor"
+              action={
                 <Select value={deptId || "ALL"} onValueChange={v => { setDeptId(v === "ALL" ? "" : (v ?? "")); setDoctorId(""); setApptTime(""); }}>
-                  <SelectTrigger className="h-7 text-xs w-44 shrink-0">
+                  <SelectTrigger className="h-7 text-xs w-48 border-gray-200">
                     <SelectValue placeholder="All departments" />
                   </SelectTrigger>
                   <SelectContent>
@@ -672,11 +614,13 @@ export default function NewAppointmentPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="h-px bg-gray-100 mb-3" />
-
+              }
+            >
               {doctors.length === 0 ? (
-                <p className="text-sm text-gray-400 py-3 text-center">No doctors available</p>
+                <div className="py-6 text-center text-gray-400">
+                  <Stethoscope className="w-8 h-8 mx-auto mb-2 text-gray-200" />
+                  <p className="text-sm">No doctors available</p>
+                </div>
               ) : (() => {
                 const renderDoc = (doc: any) => {
                   const isSelected = doctorId === String(doc.id);
@@ -685,19 +629,20 @@ export default function NewAppointmentPage() {
                     <button key={doc.id}
                       onClick={() => { setDoctorId(String(doc.id)); setApptTime(""); }}
                       className={cn(
-                        "w-full text-left p-3.5 rounded-xl border-2 transition-all relative",
+                        "w-full text-left rounded-xl border transition-all relative",
+                        "border-l-4 px-4 py-3.5",
                         isSelected
-                          ? "border-blue-500 bg-blue-50 shadow-md ring-1 ring-blue-100"
-                          : "border-gray-200 bg-white hover:border-blue-200 hover:shadow-sm"
+                          ? "border-blue-200 border-l-blue-600 bg-blue-50/70 shadow-sm"
+                          : "border-gray-100 border-l-gray-200 bg-white hover:border-l-blue-400 hover:shadow-sm hover:bg-gray-50/50"
                       )}>
                       {isSelected && (
                         <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center">
                           <CheckCircle2 className="w-3.5 h-3.5 text-white" />
                         </div>
                       )}
-                      <div className="flex items-start gap-3 pr-6">
+                      <div className="flex items-center gap-3 pr-6">
                         <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-xs font-bold select-none transition-all",
+                          "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold select-none transition-all",
                           isSelected ? "bg-blue-600 text-white" : avatarCls
                         )}>
                           {doc.full_name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
@@ -706,29 +651,29 @@ export default function NewAppointmentPage() {
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-semibold text-gray-900 truncate">{doc.full_name}</p>
                             {doc.consultation_fee != null && (
-                              <span className={cn("text-sm font-bold shrink-0", isSelected ? "text-blue-700" : "text-gray-700")}>
+                              <span className={cn("text-sm font-bold shrink-0", isSelected ? "text-blue-700" : "text-gray-600")}>
                                 ₹{Number(doc.consultation_fee).toLocaleString("en-IN")}
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500">{doc.specialization}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <p className="text-xs text-gray-400">{doc.department_name}</p>
-                            {doc.experience_years && (
-                              <p className="text-xs text-gray-400">· {doc.experience_years} yrs · {doc.avg_consultation_minutes} min/patient</p>
-                            )}
-                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">{doc.specialization}</p>
+                          {(doc.department_name || doc.experience_years) && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {doc.department_name}
+                              {doc.experience_years && ` · ${doc.experience_years} yrs · ${doc.avg_consultation_minutes} min/pt`}
+                            </p>
+                          )}
                         </div>
                       </div>
                       {isSelected && slotAvail && (
                         <div className="mt-3 flex items-center gap-2">
-                          <div className="h-1.5 flex-1 rounded-full bg-blue-100 overflow-hidden">
+                          <div className="h-1.5 flex-1 rounded-full bg-gray-200 overflow-hidden">
                             <div className={cn("h-full rounded-full transition-all",
-                              slotAvail.is_full ? "bg-red-500" : slotPct >= 0.8 ? "bg-amber-500" : "bg-green-500")}
+                              slotAvail.is_full ? "bg-red-500" : slotPct >= 0.8 ? "bg-amber-400" : "bg-emerald-500")}
                               style={{ width: `${Math.min(100, slotPct * 100)}%` }} />
                           </div>
                           <span className={cn("text-xs font-semibold shrink-0",
-                            slotAvail.is_full ? "text-red-600" : slotPct >= 0.8 ? "text-amber-600" : "text-green-600")}>
+                            slotAvail.is_full ? "text-red-600" : slotPct >= 0.8 ? "text-amber-600" : "text-emerald-600")}>
                             {slotAvail.is_full ? "Full" : `${slotAvail.available} slots free`}
                           </span>
                         </div>
@@ -738,11 +683,9 @@ export default function NewAppointmentPage() {
                 };
 
                 return deptId ? (
-                  <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
-                    {(doctors as any[]).map(renderDoc)}
-                  </div>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">{(doctors as any[]).map(renderDoc)}</div>
                 ) : (
-                  <div className="space-y-4 max-h-80 overflow-y-auto pr-0.5">
+                  <div className="space-y-5 max-h-72 overflow-y-auto">
                     {Object.entries(
                       (doctors as any[]).reduce((acc: Record<string, any[]>, doc) => {
                         const k = doc.department_name || "Other";
@@ -751,285 +694,308 @@ export default function NewAppointmentPage() {
                       }, {})
                     ).map(([dept, docs]) => (
                       <div key={dept}>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{dept}</p>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">{dept}</p>
                         <div className="space-y-2">{(docs as any[]).map(renderDoc)}</div>
                       </div>
                     ))}
                   </div>
                 );
               })()}
-            </div>
+            </CardSection>
 
-            {/* 3 — Date (non-walk-in) */}
+            {/* 3 — Schedule (non-walk-in) */}
             {doctorId && apptType !== "WALK_IN" && (
-              <div>
-                <SectionLabel>Date</SectionLabel>
-                <Input type="date" className="w-44" min={today} value={apptDate}
-                  onChange={e => { setApptDate(e.target.value); setApptTime(""); }} />
-              </div>
-            )}
+              <CardSection title="Schedule">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-2">Appointment Date</p>
+                    <Input type="date" className="w-48" min={today} value={apptDate}
+                      onChange={e => { setApptDate(e.target.value); setApptTime(""); }} />
+                  </div>
 
-            {/* 4 — No schedule banner */}
-            {doctorId && apptType !== "WALK_IN" && slotAvail && !slotAvail.has_schedule && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
-                <CalendarX className="w-4 h-4 shrink-0" />
-                No schedule on {apptDate}. Try a different date.
-              </div>
-            )}
+                  {slotAvail && !slotAvail.has_schedule && (
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                      <CalendarX className="w-4 h-4 shrink-0" />
+                      No schedule configured for {apptDate}. Try a different date.
+                    </div>
+                  )}
 
-            {/* 4 — Time slot picker (non-walk-in) */}
-            {doctorId && apptType !== "WALK_IN" && slotAvail && slotAvail.has_schedule && (
-              <div>
-                <SectionLabel>Time Slot</SectionLabel>
-                <div className="bg-white rounded-xl border p-4 space-y-4">
-                  {slotAvail.time_slots?.length > 0 ? (
-                    <>
-                      {/* Legend */}
-                      <div className="flex items-center gap-4 text-[10px] text-gray-400">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded bg-white border border-gray-300 inline-block" />
-                          Available
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded bg-gray-100 border border-gray-200 inline-block" />
-                          Booked
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded bg-blue-600 inline-block" />
-                          Selected
-                        </span>
+                  {slotAvail && slotAvail.has_schedule && (
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-3">Time Slot</p>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-5 text-[10px] text-gray-400">
+                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-white border border-gray-300 inline-block" />Available</span>
+                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-100 border border-gray-200 inline-block" />Booked</span>
+                          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-600 inline-block" />Selected</span>
+                        </div>
+                        {TIME_PERIODS.map(period => {
+                          const slots = (slotAvail.time_slots as any[]).filter(ts => ts.time >= period.from && ts.time < period.to);
+                          if (slots.length === 0) return null;
+                          const free = slots.filter(ts => !ts.is_full).length;
+                          return (
+                            <div key={period.label}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{period.label}</span>
+                                <div className="flex-1 h-px bg-gray-100" />
+                                <span className={cn("text-[10px] font-medium",
+                                  free === 0 ? "text-red-400" : free <= 3 ? "text-amber-500" : "text-emerald-600")}>
+                                  {free === 0 ? "All booked" : `${free} available`}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {slots.map(ts => (
+                                  <button key={ts.time} disabled={ts.is_full} onClick={() => setApptTime(ts.time)}
+                                    className={cn(
+                                      "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                                      apptTime === ts.time
+                                        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                                        : ts.is_full
+                                        ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
+                                        : "bg-white border-gray-200 text-gray-700 hover:border-blue-400 hover:bg-blue-50"
+                                    )}>
+                                    {ts.time}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-
-                      {/* Period groups */}
-                      {TIME_PERIODS.map(period => {
-                        const slots = (slotAvail.time_slots as any[]).filter(
-                          ts => ts.time >= period.from && ts.time < period.to
-                        );
-                        if (slots.length === 0) return null;
-                        const free = slots.filter(ts => !ts.is_full).length;
-                        return (
-                          <div key={period.label}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">{period.label}</span>
-                              <div className="flex-1 h-px bg-gray-100" />
-                              <span className={cn("text-[10px] font-medium",
-                                free === 0 ? "text-red-400" : free <= 3 ? "text-amber-500" : "text-green-600")}>
-                                {free === 0 ? "All booked" : `${free} free`}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {slots.map(ts => (
-                                <button key={ts.time} disabled={ts.is_full} onClick={() => setApptTime(ts.time)}
-                                  className={cn(
-                                    "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
-                                    apptTime === ts.time
-                                      ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-                                      : ts.is_full
-                                      ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
-                                      : "bg-white border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50"
-                                  )}>
-                                  {ts.time}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-xs text-gray-400">No schedule configured — enter time manually</p>
-                      <Input type="time" className="w-32" value={apptTime} onChange={e => setApptTime(e.target.value)} />
                     </div>
                   )}
                 </div>
-              </div>
+              </CardSection>
             )}
 
-            {/* 5 — Chief complaint */}
-            {doctorId && (
-              <div>
-                <SectionLabel>Chief Complaint</SectionLabel>
-                <div className="flex flex-wrap gap-1.5 mb-2.5">
+            {/* 4 — Chief complaint (always visible) */}
+            <CardSection title="Chief Complaint">
+              <div className={cn("space-y-3 transition-opacity", !doctorId && "opacity-40 pointer-events-none")}>
+                {!doctorId && <p className="text-xs text-gray-400 -mt-1">Select a doctor first</p>}
+                <div className="flex flex-wrap gap-1.5">
                   {COMPLAINT_TAGS.map(tag => (
                     <button key={tag} onClick={() => setChiefComplaint(c => c === tag ? "" : tag)}
                       className={cn(
-                        "px-2.5 py-1 rounded-full border text-xs font-medium transition-all",
+                        "px-3 py-1.5 rounded-full border text-xs font-medium transition-all",
                         chiefComplaint === tag
                           ? "bg-blue-600 border-blue-600 text-white"
-                          : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700"
+                          : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50"
                       )}>
                       {tag}
                     </button>
                   ))}
                 </div>
-                <Textarea className="resize-none text-sm" rows={2}
+                <Textarea className="resize-none text-sm rounded-xl" rows={2}
                   placeholder="Or describe the complaint in detail…"
                   value={chiefComplaint} onChange={e => setChiefComplaint(e.target.value)} />
               </div>
-            )}
+            </CardSection>
           </div>
 
-          {/* ── RIGHT: Appointment summary panel ──────────────────────────────── */}
-          <div className="w-72 shrink-0 bg-white border-l flex flex-col">
-            <div className="px-4 py-2.5 border-b bg-gray-50">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Appointment Summary</p>
+          {/* ── RIGHT: Appointment summary ─────────────────────────────────────── */}
+          <div className="w-80 shrink-0 bg-white border-l flex flex-col">
+
+            {/* Gradient header with progress */}
+            <div className="bg-gradient-to-br from-blue-700 to-blue-600 px-5 pt-4 pb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Ticket className="w-3.5 h-3.5 text-blue-200 shrink-0" />
+                <p className="text-[10px] text-blue-200 uppercase tracking-widest font-semibold">Appointment Summary</p>
+              </div>
+              <p className={cn("text-sm font-medium mt-0.5",
+                summaryStep === 4 ? "text-white" : "text-blue-200")}>
+                {summaryStep === 4 ? "Ready to confirm" :
+                 summaryStep === 1 ? "Search for a patient" :
+                 summaryStep === 2 ? "Choose a doctor" :
+                 "Pick a time slot"}
+              </p>
+              {/* Progress bar */}
+              <div className="mt-3 h-1 rounded-full bg-blue-900/30 overflow-hidden">
+                <div className="h-full bg-white/60 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.round(((summaryStep - 1) / 3) * 100)}%` }} />
+              </div>
+              <div className="flex justify-between mt-1.5">
+                {["Patient", "Doctor", "Time", "Ready"].map((l, i) => (
+                  <span key={l} className={cn("text-[9px] font-semibold",
+                    i + 1 <= summaryStep ? "text-white/80" : "text-blue-400/60")}>{l}</span>
+                ))}
+              </div>
             </div>
 
-            <ProgressBar step={summaryStep} />
+            {/* Summary rows */}
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-
-              {/* Step 1: Patient */}
-              {selectedPatient ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold shrink-0 select-none">
-                    {selectedPatient.first_name[0]}{selectedPatient.last_name[0]}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">
-                      {selectedPatient.first_name} {selectedPatient.last_name}
-                    </p>
-                    <p className="text-xs text-gray-500">{selectedPatient.uhid} · {calcAge(selectedPatient.date_of_birth)}/{selectedPatient.gender[0]}</p>
-                  </div>
+              {/* Patient */}
+              <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className={cn(
+                  "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs select-none",
+                  selectedPatient ? "bg-blue-600 text-white" : "bg-gray-100"
+                )}>
+                  {selectedPatient
+                    ? `${selectedPatient.first_name[0]}${selectedPatient.last_name[0]}`
+                    : <User className="w-4 h-4 text-gray-300" />}
                 </div>
-              ) : (
-                <StepPrompt n={1} label="Search and select a patient" active={summaryStep === 1} />
-              )}
-
-              {/* Step 2: Doctor */}
-              {selectedDoc ? (
-                <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Stethoscope className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                    <p className="text-sm font-semibold text-blue-900 truncate">{selectedDoc.full_name}</p>
-                  </div>
-                  <p className="text-xs text-blue-600 pl-5">{selectedDoc.specialization}</p>
-                  <p className="text-xs text-blue-400 pl-5">{selectedDoc.department_name}</p>
+                <div className="min-w-0">
+                  {selectedPatient ? (
+                    <>
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {selectedPatient.first_name} {selectedPatient.last_name}
+                      </p>
+                      <p className="text-xs text-gray-400">{selectedPatient.uhid} · {calcAge(selectedPatient.date_of_birth)}/{selectedPatient.gender[0]}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-300">No patient selected</p>
+                  )}
                 </div>
-              ) : (
-                <StepPrompt n={2} label="Choose a doctor" active={summaryStep === 2} />
-              )}
+              </div>
 
-              {/* Step 3: Time (non-walk-in only) */}
-              {apptType !== "WALK_IN" && (
-                apptTime && doctorId ? (
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span className="text-sm font-medium text-gray-700">{apptDate} · {apptTime}</span>
-                  </div>
-                ) : (
-                  <StepPrompt n={3} label="Pick a time slot" active={summaryStep === 3} />
-                )
-              )}
-
-              {/* Walk-in time indicator */}
-              {apptType === "WALK_IN" && doctorId && (
-                <div className="flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <span className="text-sm font-medium text-gray-700">Today · Now</span>
-                  <Badge className="bg-blue-100 text-blue-700 text-[10px] ml-auto">Walk-in</Badge>
+              {/* Doctor */}
+              <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className={cn(
+                  "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                  selectedDoc ? "bg-violet-100" : "bg-gray-100"
+                )}>
+                  <Stethoscope className={cn("w-4 h-4", selectedDoc ? "text-violet-600" : "text-gray-300")} />
                 </div>
-              )}
+                <div className="min-w-0">
+                  {selectedDoc ? (
+                    <>
+                      <p className="text-sm font-semibold text-gray-800 truncate">{selectedDoc.full_name}</p>
+                      <p className="text-xs text-gray-400">{selectedDoc.specialization}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-300">No doctor selected</p>
+                  )}
+                </div>
+              </div>
 
-              {/* Type + visit type + complaint */}
-              {doctorId && (apptType === "WALK_IN" || apptTime) && (
-                <div className="flex items-center gap-2 flex-wrap pl-1">
-                  <Badge className={cn("text-[10px]",
-                    apptType === "EMERGENCY"   ? "bg-red-100 text-red-700" :
-                    apptType === "FOLLOW_UP"   ? "bg-green-100 text-green-700" :
-                    apptType === "TELECONSULT" ? "bg-violet-100 text-violet-700" :
-                    apptType === "WALK_IN"     ? "bg-blue-100 text-blue-700" :
-                    "bg-indigo-100 text-indigo-700")}>
-                    {apptType.replace(/_/g, " ")}
-                  </Badge>
+              {/* Date / Time */}
+              <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className={cn(
+                  "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                  (apptType === "WALK_IN" && doctorId) || apptTime ? "bg-amber-100" : "bg-gray-100"
+                )}>
+                  <Clock className={cn("w-4 h-4",
+                    (apptType === "WALK_IN" && doctorId) || apptTime ? "text-amber-600" : "text-gray-300")} />
+                </div>
+                <div className="min-w-0">
+                  {apptType === "WALK_IN" && doctorId ? (
+                    <>
+                      <p className="text-sm font-semibold text-gray-800">Today · Now</p>
+                      <p className="text-xs text-gray-400">Walk-in appointment</p>
+                    </>
+                  ) : apptTime ? (
+                    <>
+                      <p className="text-sm font-semibold text-gray-800">{apptDate}</p>
+                      <p className="text-xs text-gray-400">{apptTime}</p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-300">No time selected</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Type badge */}
+              {doctorId && (
+                <div className="px-4 py-3.5 flex items-center gap-2 flex-wrap">
+                  {currentType && (
+                    <div className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold",
+                      apptType === "EMERGENCY"   ? "bg-red-100 text-red-700" :
+                      apptType === "FOLLOW_UP"   ? "bg-emerald-100 text-emerald-700" :
+                      apptType === "TELECONSULT" ? "bg-violet-100 text-violet-700" :
+                      apptType === "WALK_IN"     ? "bg-blue-100 text-blue-700" :
+                      "bg-indigo-100 text-indigo-700"
+                    )}>
+                      <currentType.icon className="w-3 h-3" />
+                      {apptType.replace(/_/g, " ")}
+                    </div>
+                  )}
                   {visitType === "FOLLOW_UP" && (
-                    <Badge className="bg-green-100 text-green-700 text-[10px]">Follow-up rate</Badge>
+                    <span className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                      Follow-up rate
+                    </span>
                   )}
                   {chiefComplaint && (
-                    <p className="w-full text-xs text-gray-400 italic truncate">"{chiefComplaint}"</p>
+                    <p className="w-full text-xs text-gray-400 italic mt-0.5 truncate">"{chiefComplaint}"</p>
                   )}
                 </div>
               )}
 
-              {/* Estimated wait (walk-in) */}
+              {/* Wait time */}
               {apptType === "WALK_IN" && estimatedWait !== null && doctorId && (
-                <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
-                  <Timer className="w-4 h-4 text-amber-600 shrink-0" />
+                <div className="flex items-center gap-3 px-4 py-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <Timer className="w-4 h-4 text-amber-600" />
+                  </div>
                   <div>
-                    <p className="text-xs font-semibold text-amber-800">Estimated wait</p>
-                    <p className="text-xs text-amber-600">~{estimatedWait} min · {slotAvail?.booked} ahead in queue</p>
+                    <p className="text-sm font-semibold text-amber-700">~{estimatedWait} min wait</p>
+                    <p className="text-xs text-amber-500">{slotAvail?.booked} patients ahead</p>
                   </div>
                 </div>
               )}
 
               {/* Fee breakdown */}
               {feeEstimate && (
-                <>
-                  <div className="border-t" />
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fee Estimate</p>
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Consultation</span>
-                        <span className="font-medium text-gray-700">
-                          {fmtCurrency(feeEstimate.base_fee ?? feeEstimate.fee)}
-                        </span>
-                      </div>
-                      {feeEstimate.discount > 0 && (
-                        <div className="flex justify-between text-green-600">
-                          <span>Follow-up discount</span>
-                          <span>−{fmtCurrency(feeEstimate.discount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between border-t pt-1.5 mt-1">
-                        <span className="font-semibold text-gray-700">Net payable</span>
-                        <span className="font-bold text-blue-700 text-base">{fmtCurrency(feeEstimate.fee)}</span>
-                      </div>
+                <div className="px-4 py-4 space-y-3">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fee Estimate</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Consultation fee</span>
+                      <span className="font-medium">{fmtCurrency(feeEstimate.base_fee ?? feeEstimate.fee)}</span>
                     </div>
-                    {pd?.ayushman_card_no && (
-                      <div className="flex items-center gap-1.5 text-xs text-green-600 mt-1">
-                        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                        Ayushman Bharat coverage applicable
+                    {feeEstimate.discount > 0 && (
+                      <div className="flex justify-between text-emerald-600">
+                        <span>Follow-up discount</span>
+                        <span>−{fmtCurrency(feeEstimate.discount)}</span>
                       </div>
                     )}
-                    {pd?.company_id && (
-                      <div className="flex items-center gap-1.5 text-xs text-blue-600 mt-1">
-                        <Briefcase className="w-3.5 h-3.5 shrink-0" />
-                        Corporate billing applicable
-                      </div>
-                    )}
+                    <div className="flex justify-between pt-2.5 border-t border-gray-100 mt-1">
+                      <span className="font-semibold text-gray-700">Net Payable</span>
+                      <span className="font-bold text-blue-700 text-base">{fmtCurrency(feeEstimate.fee)}</span>
+                    </div>
                   </div>
-                </>
+                  {pd?.ayushman_card_no && (
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                      Ayushman Bharat coverage applicable
+                    </div>
+                  )}
+                  {pd?.company_id && (
+                    <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                      <Briefcase className="w-3.5 h-3.5 shrink-0" />
+                      Corporate billing applicable
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Book / waitlist button */}
-            <div className="p-4 border-t space-y-2.5">
+            {/* Action footer */}
+            <div className="p-4 border-t bg-gray-50/50 space-y-2.5">
               {slotAvail?.is_full ? (
                 <div className="space-y-2">
-                  <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 font-medium text-center">
+                  <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 font-medium text-center">
                     Slot full — {slotAvail.booked}/{slotAvail.max} booked
                   </div>
                   {waitlistDone ? (
-                    <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-center">
-                      <p className="text-xs font-semibold text-green-800">Waitlist #{waitlistDone.position}</p>
-                      <p className="text-[10px] text-green-600">Will be notified when a slot opens</p>
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-center">
+                      <p className="text-xs font-semibold text-emerald-800">Waitlist #{waitlistDone.position}</p>
+                      <p className="text-[10px] text-emerald-600">Will be notified when a slot opens</p>
                     </div>
                   ) : showWaitlist ? (
                     <div className="space-y-2">
-                      <Textarea className="text-xs resize-none h-14" placeholder="Notes (optional)…"
+                      <Textarea className="text-xs resize-none h-14 rounded-xl" placeholder="Notes (optional)…"
                         value={waitlistNotes} onChange={e => setWaitlistNotes(e.target.value)} />
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1 text-xs h-8" onClick={() => setShowWaitlist(false)}>Cancel</Button>
-                        <Button size="sm" className="flex-1 text-xs h-8 bg-amber-600 hover:bg-amber-700"
+                        <Button variant="outline" size="sm" className="flex-1 text-xs h-9" onClick={() => setShowWaitlist(false)}>Cancel</Button>
+                        <Button size="sm" className="flex-1 text-xs h-9 bg-amber-600 hover:bg-amber-700"
                           disabled={!canBook || waitlistMut.isPending} onClick={handleJoinWaitlist}>
                           {waitlistMut.isPending ? "Adding…" : "Confirm"}
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <Button variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                    <Button variant="outline" className="w-full rounded-xl border-amber-300 text-amber-700 hover:bg-amber-50"
                       disabled={!canBook} onClick={() => setShowWaitlist(true)}>
                       <Users className="w-4 h-4 mr-2" /> Add to Waitlist
                     </Button>
@@ -1038,10 +1004,10 @@ export default function NewAppointmentPage() {
               ) : (
                 <>
                   <Button onClick={handleBook} disabled={!canBook || bookMut.isPending}
-                    className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-sm font-semibold">
+                    className="w-full bg-blue-600 hover:bg-blue-700 h-12 text-sm font-semibold rounded-xl shadow-sm">
                     <Ticket className="w-4 h-4 mr-2" />
                     {bookMut.isPending ? "Booking…" : "Confirm Appointment"}
-                    <ChevronRight className="w-4 h-4 ml-2" />
+                    <ChevronRight className="w-4 h-4 ml-auto" />
                   </Button>
                   {!canBook && (
                     <p className="text-[11px] text-center text-gray-400">

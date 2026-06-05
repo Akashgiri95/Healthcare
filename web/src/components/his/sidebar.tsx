@@ -25,10 +25,8 @@ const NAV: NavEntry[] = [
     basePath: "/opd/journey",
     roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"],
     children: [
-      { type: "item", href: "/opd/journey/appointment", label: "1. Book Appointment", icon: CalendarDays, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
-      { type: "item", href: "/opd/journey/register", label: "2. Register Patient", icon: UserPlus, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
-      { type: "item", href: "/opd/journey/vitals", label: "3. Vitals & Triage", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
-      { type: "item", href: "/opd/journey/consultation", label: "4. Consultation", icon: Stethoscope, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/opd/journey/vitals", label: "1. Vitals & Triage", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/opd/journey/consultation", label: "2. Consultation", icon: Stethoscope, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
     ],
   },
   { type: "item", href: "/opd", label: "OPD Queue", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
@@ -81,7 +79,7 @@ export function Sidebar() {
           <span className="text-xl">🏥</span>
           <div>
             <p className="font-bold text-sm leading-tight">HIS Portal</p>
-            <p className="text-blue-300 text-xs">Adani Healthcare</p>
+            <p className="text-blue-300 text-xs">Healthcare</p>
           </div>
         </div>
       </div>

@@ -222,7 +222,7 @@ export default function JourneyConsultationPage() {
   const finalizeMut = useMutation({
     mutationFn: () => api.post(`/api/clinical/consultation/${consultationId}/finalize`).then(r => r.data),
     onSuccess: () => {
-      completeStep(4);
+      completeStep(3);
       toast.success("Consultation finalized");
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to finalize"),
@@ -252,13 +252,13 @@ export default function JourneyConsultationPage() {
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <Topbar title="OPD Journey — Consultation" />
-          <JourneyBanner currentStep={4} />
+          <JourneyBanner currentStep={3} />
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <AlertTriangle className="w-10 h-10 mx-auto mb-3 text-amber-400 opacity-60" />
               <p className="font-medium text-gray-600 mb-4">No active visit — complete earlier steps first</p>
-              <Button onClick={() => router.push("/opd/journey/register")}>
-                <ArrowLeft className="w-4 h-4 mr-2" />Start from Register
+              <Button onClick={() => router.push("/opd")}>
+                <ArrowLeft className="w-4 h-4 mr-2" />Go to OPD Queue
               </Button>
             </div>
           </div>

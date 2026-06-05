@@ -61,6 +61,7 @@ const FLAG_BADGE = {
 export default function JourneyVitalsPage() {
   const router = useRouter();
   const { patient, visitId, completeStep } = useJourneyStore();
+  const VITALS_STEP = 2;
 
   const [form, setForm] = useState<VitalsForm>({
     bp_systolic: "", bp_diastolic: "", pulse: "", temperature: "",
@@ -102,7 +103,7 @@ export default function JourneyVitalsPage() {
       return api.post("/api/clinical/vitals", payload).then(r => r.data);
     },
     onSuccess: () => {
-      completeStep(3);
+      completeStep(VITALS_STEP);
       toast.success("Vitals saved");
       router.push("/opd/journey/consultation");
     },
@@ -124,13 +125,13 @@ export default function JourneyVitalsPage() {
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <Topbar title="OPD Journey — Vitals & Triage" />
-          <JourneyBanner currentStep={3} />
+          <JourneyBanner currentStep={VITALS_STEP} />
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-gray-400">
               <AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <p className="font-medium text-gray-600">No active visit — complete Steps 1 & 2 first</p>
-              <Button className="mt-4" onClick={() => router.push("/opd/journey/register")}>
-                <ArrowLeft className="w-4 h-4 mr-2" />Start from Register
+              <p className="font-medium text-gray-600">No active visit — check in a patient from the OPD Queue first</p>
+              <Button className="mt-4" onClick={() => router.push("/opd")}>
+                <ArrowLeft className="w-4 h-4 mr-2" />Go to OPD Queue
               </Button>
             </div>
           </div>
@@ -354,8 +355,8 @@ export default function JourneyVitalsPage() {
 
             {/* Actions */}
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => router.push("/opd/journey/appointment")}>
-                <ArrowLeft className="w-4 h-4 mr-1" />Back
+              <Button variant="outline" onClick={() => router.push("/opd")}>
+                <ArrowLeft className="w-4 h-4 mr-1" />Back to Queue
               </Button>
               <Button onClick={handleSave} disabled={saveMut.isPending} className="flex-1">
                 <Activity className="w-4 h-4 mr-2" />
