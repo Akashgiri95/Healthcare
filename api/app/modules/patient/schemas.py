@@ -59,3 +59,6 @@ class PatientUpdate(BaseModel):
     ayushman_card_no: Optional[str] = None
     abha_id: Optional[str] = None
     is_vip: Optional[bool] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    emergency_contact_relation: Optional[str] = None

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function OPDJourneyRoot() {
-  redirect("/opd/journey/register");
+  redirect("/opd/journey/appointment");
 }

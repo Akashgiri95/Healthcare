@@ -25,8 +25,8 @@ const NAV: NavEntry[] = [
     basePath: "/opd/journey",
     roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"],
     children: [
-      { type: "item", href: "/opd/journey/register", label: "1. Register Patient", icon: UserPlus, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
-      { type: "item", href: "/opd/journey/appointment", label: "2. Book Appointment", icon: CalendarDays, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/opd/journey/appointment", label: "1. Book Appointment", icon: CalendarDays, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/opd/journey/register", label: "2. Register Patient", icon: UserPlus, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
       { type: "item", href: "/opd/journey/vitals", label: "3. Vitals & Triage", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
       { type: "item", href: "/opd/journey/consultation", label: "4. Consultation", icon: Stethoscope, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
     ],

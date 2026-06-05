@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 import { CheckCircle2, ChevronRight, RotateCcw } from "lucide-react";
 
 const STEPS = [
-  { num: 1, label: "Register", href: "/opd/journey/register" },
-  { num: 2, label: "Appointment", href: "/opd/journey/appointment" },
-  { num: 3, label: "Vitals", href: "/opd/journey/vitals" },
+  { num: 1, label: "Appointment", href: "/opd/journey/appointment" },
+  { num: 2, label: "Registration", href: "/opd/journey/register" },
+  { num: 3, label: "Vitals",       href: "/opd/journey/vitals" },
   { num: 4, label: "Consultation", href: "/opd/journey/consultation" },
 ];
 
@@ -88,7 +88,7 @@ export function JourneyBanner({ currentStep }: { currentStep: number }) {
       )}
 
       <button
-        onClick={() => { reset(); router.push("/opd/journey/register"); }}
+        onClick={() => { reset(); router.push("/opd/journey/appointment"); }}
         className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-red-400 transition-colors shrink-0"
         title="Start new journey"
       >

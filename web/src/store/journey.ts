@@ -44,14 +44,14 @@ export const useJourneyStore = create<JourneyStore>()(
       consultationId: null,
       completedSteps: [],
 
-      setPatient: (patient) => set({ patient, completedSteps: [1] }),
+      setPatient: (patient) => set({ patient }),
 
       setAppointment: (appointment, visitId, visitNo) =>
         set((s) => ({
           appointment,
           visitId,
           visitNo,
-          completedSteps: [...new Set([...s.completedSteps, 2])],
+          completedSteps: [...new Set([...s.completedSteps, 1])],
         })),
 
       setConsultationId: (consultationId) => set({ consultationId }),

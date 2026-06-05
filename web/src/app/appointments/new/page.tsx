@@ -10,15 +10,19 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Search, UserPlus, CheckCircle, AlertTriangle, Printer, ChevronLeft } from "lucide-react";
+import {
+  Search, UserPlus, CheckCircle, AlertTriangle, Printer,
+  ChevronLeft, Users, CalendarX, IndianRupee, ArrowRight,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { calcAge, fmtDate } from "@/lib/utils";
+import { calcAge, fmtDate, fmtCurrency } from "@/lib/utils";
+import { useJourneyStore } from "@/store/journey";
 
-type Patient = { id: number; uhid: string; first_name: string; last_name: string; phone: string; date_of_birth: string; gender: string };
+type Patient = { id: number; uhid: string; first_name: string; last_name: string; phone: string; date_of_birth: string; gender: string; blood_group?: string };
 type Doctor  = { id: number; full_name: string; department_id: number; department_name: string; specialization: string; max_patients_per_slot: number };
 
-// ── Appointment Slip (print view) ─────────────────────────────────────────────
+// ── Appointment Slip ──────────────────────────────────────────────────────────
 function AppointmentSlip({ appt, patient, doctor }: { appt: any; patient: Patient; doctor: Doctor }) {
   return (
     <div className="p-8 border rounded-lg bg-white text-sm" id="print-slip">
@@ -26,23 +30,23 @@ function AppointmentSlip({ appt, patient, doctor }: { appt: any; patient: Patien
         <h1 className="text-lg font-bold text-blue-900">City General Hospital</h1>
         <p className="text-gray-500 text-xs">Appointment Confirmation Slip</p>
       </div>
-      <div className="grid grid-cols-2 gap-x-8 gap-y-2 border-t pt-4">
-        <div><span className="text-gray-400 text-xs">Appointment No</span><p className="font-mono font-semibold">{appt.appointment_no}</p></div>
-        <div><span className="text-gray-400 text-xs">Token</span><p className="text-2xl font-bold text-blue-600">#{appt.token_number}</p></div>
-        <div><span className="text-gray-400 text-xs">Patient Name</span><p className="font-medium">{patient.first_name} {patient.last_name}</p></div>
-        <div><span className="text-gray-400 text-xs">UHID</span><p className="font-mono">{patient.uhid}</p></div>
-        <div><span className="text-gray-400 text-xs">Age / Gender</span><p>{calcAge(patient.date_of_birth)} / {patient.gender}</p></div>
-        <div><span className="text-gray-400 text-xs">Phone</span><p>{patient.phone}</p></div>
-        <div><span className="text-gray-400 text-xs">Doctor</span><p className="font-medium">{doctor.full_name}</p></div>
-        <div><span className="text-gray-400 text-xs">Department</span><p>{doctor.department_name}</p></div>
-        <div><span className="text-gray-400 text-xs">Date</span><p className="font-medium">{fmtDate(appt.appointment_date)}</p></div>
-        <div><span className="text-gray-400 text-xs">Time</span><p className="font-medium">{appt.appointment_time}</p></div>
-        <div><span className="text-gray-400 text-xs">Type</span><p>{appt.appointment_type?.replace("_", " ")}</p></div>
-        <div><span className="text-gray-400 text-xs">Visit Type</span><p>{appt.visit_type?.replace("_", " ")}</p></div>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-3 border-t pt-4">
+        <div><span className="text-gray-400 text-xs block">Appointment No</span><p className="font-mono font-semibold">{appt.appointment_no}</p></div>
+        <div><span className="text-gray-400 text-xs block">Token</span><p className="text-2xl font-bold text-blue-600">#{appt.token_number}</p></div>
+        <div><span className="text-gray-400 text-xs block">Patient Name</span><p className="font-medium">{patient.first_name} {patient.last_name}</p></div>
+        <div><span className="text-gray-400 text-xs block">UHID</span><p className="font-mono">{patient.uhid}</p></div>
+        <div><span className="text-gray-400 text-xs block">Age / Gender</span><p>{calcAge(patient.date_of_birth)} / {patient.gender}</p></div>
+        <div><span className="text-gray-400 text-xs block">Phone</span><p>{patient.phone}</p></div>
+        <div><span className="text-gray-400 text-xs block">Doctor</span><p className="font-medium">{doctor.full_name}</p></div>
+        <div><span className="text-gray-400 text-xs block">Department</span><p>{doctor.department_name}</p></div>
+        <div><span className="text-gray-400 text-xs block">Date</span><p className="font-medium">{fmtDate(appt.appointment_date)}</p></div>
+        <div><span className="text-gray-400 text-xs block">Time</span><p className="font-medium">{appt.appointment_time}</p></div>
+        <div><span className="text-gray-400 text-xs block">Type</span><p>{appt.appointment_type?.replace("_", " ")}</p></div>
+        <div><span className="text-gray-400 text-xs block">Visit Type</span><p>{appt.visit_type?.replace("_", " ")}</p></div>
       </div>
       {appt.chief_complaint && (
         <div className="mt-4 border-t pt-3">
-          <span className="text-gray-400 text-xs">Chief Complaint</span>
+          <span className="text-gray-400 text-xs block">Chief Complaint</span>
           <p>{appt.chief_complaint}</p>
         </div>
       )}
@@ -53,8 +57,44 @@ function AppointmentSlip({ appt, patient, doctor }: { appt: any; patient: Patien
   );
 }
 
+// ── Slot availability pill ────────────────────────────────────────────────────
+function SlotPill({ avail }: { avail: any }) {
+  if (!avail) return null;
+
+  const pct = avail.max > 0 ? avail.booked / avail.max : 0;
+  const color = avail.is_full
+    ? "bg-red-100 text-red-700 border-red-200"
+    : pct >= 0.8
+    ? "bg-amber-100 text-amber-700 border-amber-200"
+    : "bg-green-100 text-green-700 border-green-200";
+
+  if (!avail.has_schedule) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-gray-400 border rounded-md px-3 py-1.5">
+        <Users className="w-3.5 h-3.5" />
+        No schedule — walk-in allowed &nbsp;·&nbsp; {avail.booked} booked today
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex items-center gap-1.5 text-xs border rounded-md px-3 py-1.5 ${color}`}>
+      <Users className="w-3.5 h-3.5" />
+      {avail.is_full
+        ? `Slot full — ${avail.booked}/${avail.max} patients`
+        : `${avail.available} of ${avail.max} slots remaining · ${avail.booked} booked`}
+      {avail.slots?.length > 0 && (
+        <span className="ml-2 text-gray-500">
+          ({avail.slots.map((s: any) => `${s.start}–${s.end}`).join(", ")})
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function NewAppointmentPage() {
   const router = useRouter();
+  const { setPatient, setAppointment, reset } = useJourneyStore();
 
   // Step 1 — Patient
   const [searchQ, setSearchQ] = useState("");
@@ -74,6 +114,11 @@ export default function NewAppointmentPage() {
   // Result
   const [bookedAppt, setBookedAppt] = useState<any>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+
+  const today = format(new Date(), "yyyy-MM-dd");
+  const isSameDay = bookedAppt?.appointment_date === today;
+
+  // ── Queries ──────────────────────────────────────────────────────────────────
 
   const { data: searchResults = [], isLoading: searching } = useQuery({
     queryKey: ["patient-search", searchQ],
@@ -97,6 +142,37 @@ export default function NewAppointmentPage() {
     enabled: !!(selectedPatient && doctorId && apptDate),
   });
 
+  // FIX 1a — Slot availability
+  const { data: slotAvail } = useQuery({
+    queryKey: ["slot-avail", doctorId, apptDate],
+    queryFn: () => api.get(`/api/appointments/available-slots?doctor_id=${doctorId}&date=${apptDate}`).then((r) => r.data),
+    enabled: !!(doctorId && apptDate),
+  });
+
+  // FIX 1b — Doctor block check
+  const { data: blocks = [] } = useQuery({
+    queryKey: ["doc-blocks", doctorId, apptDate],
+    queryFn: () => api.get(`/api/appointments/blocks?doctor_id=${doctorId}&block_date=${apptDate}`).then((r) => r.data),
+    enabled: !!(doctorId && apptDate),
+  });
+
+  // FIX 3 — Fee estimate
+  const { data: feeEstimate } = useQuery({
+    queryKey: ["fee-estimate", selectedPatient?.id, doctorId],
+    queryFn: () => api.get(`/api/appointments/fee-estimate?patient_id=${selectedPatient!.id}&doctor_id=${doctorId}`).then((r) => r.data),
+    enabled: !!(selectedPatient && doctorId),
+  });
+
+  // Auto-suggest visit type from fee estimate
+  useEffect(() => {
+    if (feeEstimate?.visit_type) {
+      setVisitType(feeEstimate.visit_type);
+      if (feeEstimate.visit_type === "FOLLOW_UP") setApptType("FOLLOW_UP");
+    }
+  }, [feeEstimate?.visit_type]);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────────
+
   const quickRegMut = useMutation({
     mutationFn: (body: typeof qrForm) => api.post("/api/patients/quick-register", body),
     onSuccess: (res) => {
@@ -119,6 +195,38 @@ export default function NewAppointmentPage() {
     onError: (e: any) => toast.error(e.response?.data?.detail || "Booking failed"),
   });
 
+  // FIX 2 — Check-in + start OPD journey
+  const checkinMut = useMutation({
+    mutationFn: (apptId: number) => api.post(`/api/appointments/${apptId}/checkin`),
+    onSuccess: (res) => {
+      const { visit_id, visit_no, appointment } = res.data;
+      reset();
+      setPatient({
+        id: selectedPatient!.id,
+        uhid: selectedPatient!.uhid,
+        name: `${selectedPatient!.first_name} ${selectedPatient!.last_name}`,
+        gender: selectedPatient!.gender,
+        dob: selectedPatient!.date_of_birth,
+        phone: selectedPatient!.phone,
+        blood_group: selectedPatient!.blood_group,
+      });
+      setAppointment(
+        {
+          id: bookedAppt.id,
+          appointment_no: bookedAppt.appointment_no,
+          token_number: bookedAppt.token_number,
+          doctor_name: selectedDoctor?.full_name ?? "",
+          department_name: selectedDoctor?.department_name ?? "",
+        },
+        visit_id,
+        visit_no,
+      );
+      toast.success("Checked in — proceeding to vitals");
+      router.push("/opd/journey/vitals");
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || "Check-in failed"),
+  });
+
   const handleBook = () => {
     if (!selectedPatient || !doctorId || !apptDate || !apptTime) return;
     const dept = doctors.find((d: Doctor) => d.id === Number(doctorId))?.department_id;
@@ -134,7 +242,9 @@ export default function NewAppointmentPage() {
     });
   };
 
-  // Success screen
+  const activeBlock = blocks.find((b: any) => b.is_active);
+
+  // ── Success screen ────────────────────────────────────────────────────────────
   if (bookedAppt && selectedPatient && selectedDoctor) {
     return (
       <div className="flex h-screen">
@@ -143,12 +253,31 @@ export default function NewAppointmentPage() {
           <Topbar title="Appointment Booked" />
           <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
             <div className="max-w-xl mx-auto space-y-4">
-              <div className="flex items-center gap-2 text-green-600 mb-2">
+              <div className="flex items-center gap-2 text-green-600">
                 <CheckCircle className="w-5 h-5" />
                 <span className="font-semibold">Appointment confirmed</span>
               </div>
+
+              {/* FIX 2 — Same-day walk-in banner */}
+              {isSameDay && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-blue-800">Patient is here today?</p>
+                    <p className="text-xs text-blue-600 mt-0.5">Check them in now and go straight to vitals — no need to come back to this page.</p>
+                  </div>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 gap-1.5 ml-4 shrink-0"
+                    disabled={checkinMut.isPending}
+                    onClick={() => checkinMut.mutate(bookedAppt.id)}
+                  >
+                    Check In & Start Journey <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
               <AppointmentSlip appt={bookedAppt} patient={selectedPatient} doctor={selectedDoctor} />
-              <div className="flex gap-3">
+
+              <div className="flex gap-3 flex-wrap">
                 <Button className="gap-1.5" onClick={() => window.print()}>
                   <Printer className="w-4 h-4" /> Print Slip
                 </Button>
@@ -169,6 +298,7 @@ export default function NewAppointmentPage() {
     );
   }
 
+  // ── Booking form ──────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen">
       <Sidebar />
@@ -180,7 +310,7 @@ export default function NewAppointmentPage() {
               <ChevronLeft className="w-4 h-4" /> Back to Appointments
             </Link>
 
-            {/* ── Step 1: Patient ── */}
+            {/* Step 1 — Patient */}
             <Card>
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
@@ -204,7 +334,7 @@ export default function NewAppointmentPage() {
                   </div>
                 ) : showQuickReg ? (
                   <div className="border rounded-lg p-4 space-y-3 bg-amber-50">
-                    <p className="text-sm font-medium text-amber-800">Quick Registration — UHID will be generated immediately</p>
+                    <p className="text-sm font-medium text-amber-800">Quick Registration — UHID generated immediately, full details can be updated later</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-xs text-gray-500 mb-1 block">First Name *</label>
@@ -231,7 +361,7 @@ export default function NewAppointmentPage() {
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 mb-1 block">Date of Birth *</label>
-                        <Input type="date" value={qrForm.date_of_birth} onChange={(e) => setQrForm(f => ({ ...f, date_of_birth: e.target.value }))} max={format(new Date(), "yyyy-MM-dd")} />
+                        <Input type="date" value={qrForm.date_of_birth} onChange={(e) => setQrForm(f => ({ ...f, date_of_birth: e.target.value }))} max={today} />
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -246,17 +376,13 @@ export default function NewAppointmentPage() {
                 ) : (
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                    <Input
-                      className="pl-9"
-                      placeholder="Search by name, phone, or UHID…"
-                      value={searchQ}
-                      onChange={(e) => setSearchQ(e.target.value)}
-                    />
+                    <Input className="pl-9" placeholder="Search by name, phone, or UHID…"
+                      value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
                     {searchQ.length >= 2 && (
                       <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
                         {searching && <div className="px-4 py-3 text-sm text-gray-400">Searching…</div>}
                         {!searching && searchResults.length === 0 && (
-                          <div className="px-4 py-3 text-sm text-gray-400">No patients found — try Quick Register</div>
+                          <div className="px-4 py-3 text-sm text-gray-400">No patients found — use Quick Register above</div>
                         )}
                         {searchResults.map((p: Patient) => (
                           <button key={p.id} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 border-b last:border-0"
@@ -272,16 +398,29 @@ export default function NewAppointmentPage() {
               </CardContent>
             </Card>
 
-            {/* ── Step 2: Booking ── */}
+            {/* Step 2 — Appointment Details */}
             {selectedPatient && (
               <Card>
                 <CardContent className="p-5 space-y-4">
                   <h2 className="font-semibold text-gray-800">Step 2 — Appointment Details</h2>
 
+                  {/* Duplicate warning */}
                   {dupCheck?.duplicate && (
                     <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                      <span>This patient already has an appointment with this doctor on {apptDate}. Proceed only if needed.</span>
+                      <span>This patient already has an active appointment with this doctor on {apptDate}. Proceed only if needed.</span>
+                    </div>
+                  )}
+
+                  {/* FIX 1b — Doctor block warning */}
+                  {activeBlock && (
+                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                      <CalendarX className="w-4 h-4 flex-shrink-0" />
+                      <span>
+                        Doctor is <strong>{activeBlock.reason}</strong> on this date.
+                        {activeBlock.notes && ` (${activeBlock.notes})`}
+                        {" "}Appointments can still be booked but the doctor may not be available.
+                      </span>
                     </div>
                   )}
 
@@ -313,8 +452,7 @@ export default function NewAppointmentPage() {
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Date *</label>
-                      <Input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)}
-                        min={format(new Date(), "yyyy-MM-dd")} />
+                      <Input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} min={today} />
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Time *</label>
@@ -351,10 +489,35 @@ export default function NewAppointmentPage() {
                     </div>
                   </div>
 
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 mt-2"
-                    disabled={!doctorId || !apptDate || !apptTime || bookMut.isPending}
+                  {/* FIX 1a — Slot availability */}
+                  {doctorId && apptDate && <SlotPill avail={slotAvail} />}
+
+                  {/* FIX 3 — Fee estimate */}
+                  {feeEstimate && (
+                    <div className="flex items-center gap-3 bg-gray-50 border rounded-lg px-4 py-3 text-sm">
+                      <IndianRupee className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <div>
+                        <span className="font-semibold text-gray-800">{fmtCurrency(feeEstimate.fee)}</span>
+                        {feeEstimate.visit_type === "FOLLOW_UP" ? (
+                          <span className="text-gray-500 ml-2">
+                            Follow-up rate
+                            {feeEstimate.discount > 0 && ` (saves ${fmtCurrency(feeEstimate.discount)})`}
+                            {feeEstimate.days_since != null && ` · last visit ${feeEstimate.days_since} days ago`}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 ml-2">
+                            New patient consultation
+                            {feeEstimate.followup_fee && ` · follow-up rate ${fmtCurrency(feeEstimate.followup_fee)}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700"
+                    disabled={!doctorId || !apptDate || !apptTime || bookMut.isPending || slotAvail?.is_full}
                     onClick={handleBook}>
-                    Confirm Appointment
+                    {slotAvail?.is_full ? "Slot Full — Cannot Book" : "Confirm Appointment"}
                   </Button>
                 </CardContent>
               </Card>
