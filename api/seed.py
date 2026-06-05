@@ -86,27 +86,42 @@ def seed():
         for u in [admin, recept, nurse, billing_u]:
             s.add(u)
 
+        # ── Staff users (pharmacist + lab tech) ───────────────────────────────
+        pharma_u = User(employee_id="EMP005", full_name="Mahesh Jain",    email="pharmacy@his.local",  phone="9000000005", password_hash=hash_password("his@1234"), role=UserRole.PHARMACIST)
+        lab_u    = User(employee_id="EMP006", full_name="Anita Kulkarni", email="lab@his.local",       phone="9000000006", password_hash=hash_password("his@1234"), role=UserRole.LAB_TECHNICIAN)
+        for u in [pharma_u, lab_u]:
+            s.add(u)
+
         # ── Doctor users ──────────────────────────────────────────────────────
         doc_users = [
-            User(employee_id="DOC001", full_name="Dr. Arvind Mehta",  email="dr.mehta@his.local",  phone="9000000010", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
-            User(employee_id="DOC002", full_name="Dr. Sneha Patel",   email="dr.patel@his.local",  phone="9000000011", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
-            User(employee_id="DOC003", full_name="Dr. Ramesh Iyer",   email="dr.iyer@his.local",   phone="9000000012", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
-            User(employee_id="DOC004", full_name="Dr. Kavitha Nair",  email="dr.nair@his.local",   phone="9000000013", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
-            User(employee_id="DOC005", full_name="Dr. Suresh Kumar",  email="dr.kumar@his.local",  phone="9000000014", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC001", full_name="Dr. Arvind Mehta",    email="dr.mehta@his.local",    phone="9000000010", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC002", full_name="Dr. Sneha Patel",     email="dr.patel@his.local",    phone="9000000011", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC003", full_name="Dr. Ramesh Iyer",     email="dr.iyer@his.local",     phone="9000000012", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC004", full_name="Dr. Kavitha Nair",    email="dr.nair@his.local",     phone="9000000013", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC005", full_name="Dr. Suresh Kumar",    email="dr.kumar@his.local",    phone="9000000014", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC006", full_name="Dr. Priya Menon",     email="dr.menon@his.local",    phone="9000000015", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC007", full_name="Dr. Rajesh Khanna",   email="dr.khanna@his.local",   phone="9000000016", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC008", full_name="Dr. Anita Desai",     email="dr.desai@his.local",    phone="9000000017", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
+            User(employee_id="DOC009", full_name="Dr. Vikram Joshi",    email="dr.joshi@his.local",    phone="9000000018", password_hash=hash_password("his@1234"), role=UserRole.DOCTOR),
         ]
         for u in doc_users:
             s.add(u)
         s.commit()
-        for u in [admin, recept, nurse, billing_u] + doc_users:
+        for u in [admin, recept, nurse, billing_u, pharma_u, lab_u] + doc_users:
             s.refresh(u)
 
         # ── Doctor profiles ───────────────────────────────────────────────────
+        # depts index: 0=GM, 1=Card, 2=Ortho, 3=Gyn, 4=Paed, 5=ENT, 6=Derm, 7=Opth, 8=Neuro, 9=Emrg
         doctors = [
-            Doctor(user_id=doc_users[0].id, department_id=depts[0].id, registration_number="MCI12345", specialization="General Medicine",   qualification="MBBS, MD",                    experience_years=15),
-            Doctor(user_id=doc_users[1].id, department_id=depts[1].id, registration_number="MCI12346", specialization="Cardiology",          qualification="MBBS, MD, DM Cardiology",      experience_years=12, consultation_fee=1200),
-            Doctor(user_id=doc_users[2].id, department_id=depts[2].id, registration_number="MCI12347", specialization="Orthopaedics",        qualification="MBBS, MS Ortho",               experience_years=10),
-            Doctor(user_id=doc_users[3].id, department_id=depts[3].id, registration_number="MCI12348", specialization="Gynaecology",         qualification="MBBS, MS OBG",                 experience_years=14),
-            Doctor(user_id=doc_users[4].id, department_id=depts[4].id, registration_number="MCI12349", specialization="Paediatrics",         qualification="MBBS, MD Paediatrics",         experience_years=8),
+            Doctor(user_id=doc_users[0].id, department_id=depts[0].id, registration_number="MCI12345", specialization="General Medicine",   qualification="MBBS, MD",                      experience_years=15),
+            Doctor(user_id=doc_users[1].id, department_id=depts[1].id, registration_number="MCI12346", specialization="Cardiology",          qualification="MBBS, MD, DM Cardiology",        experience_years=12, consultation_fee=1200),
+            Doctor(user_id=doc_users[2].id, department_id=depts[2].id, registration_number="MCI12347", specialization="Orthopaedics",        qualification="MBBS, MS Ortho",                 experience_years=10),
+            Doctor(user_id=doc_users[3].id, department_id=depts[3].id, registration_number="MCI12348", specialization="Gynaecology",         qualification="MBBS, MS OBG",                   experience_years=14),
+            Doctor(user_id=doc_users[4].id, department_id=depts[4].id, registration_number="MCI12349", specialization="Paediatrics",         qualification="MBBS, MD Paediatrics",           experience_years=8),
+            Doctor(user_id=doc_users[5].id, department_id=depts[5].id, registration_number="MCI12350", specialization="ENT",                 qualification="MBBS, MS ENT",                   experience_years=9),
+            Doctor(user_id=doc_users[6].id, department_id=depts[6].id, registration_number="MCI12351", specialization="Dermatology",         qualification="MBBS, MD Dermatology",           experience_years=11),
+            Doctor(user_id=doc_users[7].id, department_id=depts[7].id, registration_number="MCI12352", specialization="Ophthalmology",       qualification="MBBS, MS Ophthalmology",         experience_years=13),
+            Doctor(user_id=doc_users[8].id, department_id=depts[8].id, registration_number="MCI12353", specialization="Neurology",           qualification="MBBS, MD, DM Neurology",         experience_years=16, consultation_fee=1200),
         ]
         for doc in doctors:
             s.add(doc)
@@ -116,16 +131,33 @@ def seed():
 
         # ── Doctor slots ──────────────────────────────────────────────────────
         slots = [
+            # GM — Dr. Mehta (Mon-Sat morning + Mon/Wed/Fri evening)
             *[DoctorSlot(doctor_id=doctors[0].id, department_id=depts[0].id, day_of_week=d_, start_time=time(9,0),  end_time=time(13,0), max_patients=20) for d_ in range(6)],
             *[DoctorSlot(doctor_id=doctors[0].id, department_id=depts[0].id, day_of_week=d_, start_time=time(17,0), end_time=time(20,0), max_patients=15) for d_ in [0,2,4]],
+            # Cardiology — Dr. Patel
             *[DoctorSlot(doctor_id=doctors[1].id, department_id=depts[1].id, day_of_week=d_, start_time=time(10,0), end_time=time(13,0), max_patients=15) for d_ in range(5)],
             *[DoctorSlot(doctor_id=doctors[1].id, department_id=depts[1].id, day_of_week=d_, start_time=time(16,0), end_time=time(19,0), max_patients=10) for d_ in [0,2]],
+            # Ortho — Dr. Iyer
             *[DoctorSlot(doctor_id=doctors[2].id, department_id=depts[2].id, day_of_week=d_, start_time=time(9,0),  end_time=time(13,0), max_patients=20) for d_ in [0,2,4]],
             *[DoctorSlot(doctor_id=doctors[2].id, department_id=depts[2].id, day_of_week=d_, start_time=time(14,0), end_time=time(17,0), max_patients=15) for d_ in [1,3]],
+            # Gynaecology — Dr. Nair
             *[DoctorSlot(doctor_id=doctors[3].id, department_id=depts[3].id, day_of_week=d_, start_time=time(9,0),  end_time=time(13,0), max_patients=20) for d_ in [1,3,5]],
             *[DoctorSlot(doctor_id=doctors[3].id, department_id=depts[3].id, day_of_week=d_, start_time=time(15,0), end_time=time(18,0), max_patients=15) for d_ in [0,2]],
+            # Paediatrics — Dr. Kumar
             *[DoctorSlot(doctor_id=doctors[4].id, department_id=depts[4].id, day_of_week=d_, start_time=time(9,0),  end_time=time(12,0), max_patients=25) for d_ in range(6)],
             *[DoctorSlot(doctor_id=doctors[4].id, department_id=depts[4].id, day_of_week=d_, start_time=time(16,0), end_time=time(18,0), max_patients=15) for d_ in [1,3]],
+            # ENT — Dr. Menon
+            *[DoctorSlot(doctor_id=doctors[5].id, department_id=depts[5].id, day_of_week=d_, start_time=time(9,0),  end_time=time(13,0), max_patients=20) for d_ in range(6)],
+            *[DoctorSlot(doctor_id=doctors[5].id, department_id=depts[5].id, day_of_week=d_, start_time=time(17,0), end_time=time(19,0), max_patients=10) for d_ in [1,3]],
+            # Dermatology — Dr. Khanna
+            *[DoctorSlot(doctor_id=doctors[6].id, department_id=depts[6].id, day_of_week=d_, start_time=time(10,0), end_time=time(14,0), max_patients=20) for d_ in range(6)],
+            *[DoctorSlot(doctor_id=doctors[6].id, department_id=depts[6].id, day_of_week=d_, start_time=time(16,0), end_time=time(18,0), max_patients=15) for d_ in [0,2,4]],
+            # Ophthalmology — Dr. Desai
+            *[DoctorSlot(doctor_id=doctors[7].id, department_id=depts[7].id, day_of_week=d_, start_time=time(9,0),  end_time=time(13,0), max_patients=20) for d_ in [0,1,2,3,4]],
+            *[DoctorSlot(doctor_id=doctors[7].id, department_id=depts[7].id, day_of_week=d_, start_time=time(15,0), end_time=time(18,0), max_patients=15) for d_ in [1,3]],
+            # Neurology — Dr. Joshi
+            *[DoctorSlot(doctor_id=doctors[8].id, department_id=depts[8].id, day_of_week=d_, start_time=time(10,0), end_time=time(13,0), max_patients=15) for d_ in range(5)],
+            *[DoctorSlot(doctor_id=doctors[8].id, department_id=depts[8].id, day_of_week=d_, start_time=time(15,0), end_time=time(17,0), max_patients=10) for d_ in [0,2]],
         ]
         for sl in slots:
             s.add(sl)
@@ -498,11 +530,46 @@ def seed():
             (16, 2,  9, 30, AppointmentStatus.SCHEDULED,   "Antenatal check-up — 28 weeks",           False),
         ]
 
+        # Dr. Menon (ENT)
+        menon_schedule = [
+            (17, 1,  9,  0, AppointmentStatus.COMPLETED,   "Ear pain and discharge since 3 days",     True),
+            (18, 2,  9, 30, AppointmentStatus.WITH_DOCTOR, "Throat pain and difficulty swallowing",   True),
+            (19, 3, 10,  0, AppointmentStatus.IN_QUEUE,    "Nasal congestion and sneezing",            True),
+            (20, 4, 10, 30, AppointmentStatus.SCHEDULED,   "Hearing difficulty — left ear",            False),
+        ]
+
+        # Dr. Khanna (Dermatology)
+        khanna_schedule = [
+            (21, 1, 10,  0, AppointmentStatus.COMPLETED,   "Skin rash and itching on arms",           True),
+            (22, 2, 10, 30, AppointmentStatus.WITH_DOCTOR, "Acne and pigmentation on face",           True),
+            (23, 3, 11,  0, AppointmentStatus.IN_QUEUE,    "Hair fall — excessive over 2 months",     True),
+            (24, 4, 11, 30, AppointmentStatus.SCHEDULED,   "Psoriasis follow-up",                     False),
+            (25, 5, 12,  0, AppointmentStatus.SCHEDULED,   "Fungal infection on scalp",               False),
+        ]
+
+        # Dr. Desai (Ophthalmology)
+        desai_schedule = [
+            (26, 1,  9,  0, AppointmentStatus.COMPLETED,   "Eye redness and watering",                True),
+            (27, 2,  9, 30, AppointmentStatus.CHECKED_IN,  "Blurred vision — progressive",            False),
+            (28, 3, 10,  0, AppointmentStatus.SCHEDULED,   "Routine eye check — glasses update",      False),
+        ]
+
+        # Dr. Joshi (Neurology)
+        joshi_schedule = [
+            (29, 1, 10,  0, AppointmentStatus.COMPLETED,   "Severe migraine — recurring",             True),
+            (0,  2, 10, 30, AppointmentStatus.WITH_DOCTOR, "Numbness in hands and feet",              True),
+            (1,  3, 11,  0, AppointmentStatus.SCHEDULED,   "Epilepsy — medication review",            False),
+        ]
+
         all_today = [
             (doctors[0], depts[0], mehta_schedule),
             (doctors[1], depts[1], patel_schedule),
             (doctors[4], depts[4], kumar_schedule),
             (doctors[3], depts[3], nair_schedule),
+            (doctors[5], depts[5], menon_schedule),
+            (doctors[6], depts[6], khanna_schedule),
+            (doctors[7], depts[7], desai_schedule),
+            (doctors[8], depts[8], joshi_schedule),
         ]
 
         # Map status → minutes offset from appointment time for timestamps
@@ -647,22 +714,32 @@ def seed():
 
         print("\n✓ Seed complete.\n")
         print("Demo login credentials (password: his@1234)")
-        print("─" * 45)
-        print(f"  {'admin@his.local':<30} Admin")
-        print(f"  {'reception@his.local':<30} Receptionist")
-        print(f"  {'nurse@his.local':<30} Nurse")
-        print(f"  {'billing@his.local':<30} Billing")
-        print(f"  {'dr.mehta@his.local':<30} Dr. Arvind Mehta (General Medicine)")
-        print(f"  {'dr.patel@his.local':<30} Dr. Sneha Patel (Cardiology)")
-        print(f"  {'dr.iyer@his.local':<30} Dr. Ramesh Iyer (Orthopaedics)")
-        print(f"  {'dr.nair@his.local':<30} Dr. Kavitha Nair (Gynaecology)")
-        print(f"  {'dr.kumar@his.local':<30} Dr. Suresh Kumar (Paediatrics)")
+        print("─" * 50)
+        print(f"  {'admin@his.local':<32} Admin")
+        print(f"  {'reception@his.local':<32} Receptionist")
+        print(f"  {'nurse@his.local':<32} Nurse")
+        print(f"  {'billing@his.local':<32} Billing")
+        print(f"  {'pharmacy@his.local':<32} Pharmacist")
+        print(f"  {'lab@his.local':<32} Lab Technician")
+        print(f"  {'dr.mehta@his.local':<32} Dr. Arvind Mehta  — General Medicine")
+        print(f"  {'dr.patel@his.local':<32} Dr. Sneha Patel   — Cardiology")
+        print(f"  {'dr.iyer@his.local':<32} Dr. Ramesh Iyer   — Orthopaedics")
+        print(f"  {'dr.nair@his.local':<32} Dr. Kavitha Nair  — Gynaecology")
+        print(f"  {'dr.kumar@his.local':<32} Dr. Suresh Kumar  — Paediatrics")
+        print(f"  {'dr.menon@his.local':<32} Dr. Priya Menon   — ENT")
+        print(f"  {'dr.khanna@his.local':<32} Dr. Rajesh Khanna — Dermatology")
+        print(f"  {'dr.desai@his.local':<32} Dr. Anita Desai   — Ophthalmology")
+        print(f"  {'dr.joshi@his.local':<32} Dr. Vikram Joshi  — Neurology")
         print("\nToday's demo state:")
-        print("  Dr. Mehta  — 3 completed, 1 with-doctor, 1 in-queue, 1 checked-in, 2 scheduled")
-        print("  Dr. Patel  — 1 completed, 1 with-doctor, 1 in-queue, 1 scheduled")
-        print("  Dr. Kumar  — 1 completed, 1 checked-in, 1 scheduled")
-        print("  Dr. Nair   — 1 completed, 1 scheduled")
-        print(f"\n  {len(patients)} patients  |  30-day history  |  prescriptions + bills pre-loaded\n")
+        print("  Dr. Mehta  (GM)    — 3 completed, 1 with-doctor, 1 in-queue, 1 checked-in, 2 scheduled")
+        print("  Dr. Patel  (Card)  — 1 completed, 1 with-doctor, 1 in-queue, 1 scheduled")
+        print("  Dr. Kumar  (Paed)  — 1 completed, 1 checked-in, 1 scheduled")
+        print("  Dr. Nair   (Gyn)   — 1 completed, 1 scheduled")
+        print("  Dr. Menon  (ENT)   — 1 completed, 1 with-doctor, 1 in-queue, 1 scheduled")
+        print("  Dr. Khanna (Derm)  — 1 completed, 1 with-doctor, 1 in-queue, 2 scheduled")
+        print("  Dr. Desai  (Opth)  — 1 completed, 1 checked-in, 1 scheduled")
+        print("  Dr. Joshi  (Neuro) — 1 completed, 1 with-doctor, 1 scheduled")
+        print(f"\n  {len(patients)} patients  |  9 doctors across all departments  |  30-day history  |  prescriptions + bills pre-loaded\n")
 
 
 if __name__ == "__main__":
