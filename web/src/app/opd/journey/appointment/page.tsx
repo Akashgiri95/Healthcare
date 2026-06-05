@@ -421,10 +421,24 @@ export default function JourneyAppointmentPage() {
                 </div>
 
                 {/* Duplicate warning */}
-                {dupCheck?.duplicate && (
-                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                    <span>Patient already has an active appointment with this doctor on {apptDate}.</span>
+                {dupCheck?.duplicate && dupCheck.appointment && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-800 font-medium text-sm">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      Duplicate appointment detected
+                    </div>
+                    <div className="flex items-center gap-3 bg-white border border-amber-200 rounded-lg px-3 py-2">
+                      <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        {dupCheck.appointment.token_number}
+                      </div>
+                      <div className="flex-1 text-xs text-gray-700">
+                        <p className="font-medium">Token #{dupCheck.appointment.token_number} · {dupCheck.appointment.appointment_no}</p>
+                        <p className="text-gray-500">
+                          {dupCheck.appointment.appointment_time?.slice(0, 5)} · {dupCheck.appointment.appointment_type?.replace("_", " ")} · {dupCheck.appointment.status}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-700">Booking another appointment will create a second visit. Proceed only if intentional.</p>
                   </div>
                 )}
 
