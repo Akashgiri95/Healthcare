@@ -25,11 +25,14 @@ const NAV: NavEntry[] = [
     basePath: "/opd/journey",
     roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"],
     children: [
-      { type: "item", href: "/opd/journey/vitals", label: "1. Vitals & Triage", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
-      { type: "item", href: "/opd/journey/consultation", label: "2. Consultation", icon: Stethoscope, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/appointments/new", label: "1. Book Appointment", icon: CalendarDays, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/patients/new",     label: "2. Register Patient", icon: UserPlus,    roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/opd",              label: "3. Check-in / Queue", icon: MonitorCheck, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/opd/journey/vitals",        label: "4. Vitals & Triage", icon: Activity,    roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/opd/journey/consultation",  label: "5. Consultation",    icon: Stethoscope,  roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
+      { type: "item", href: "/billing",          label: "6. Billing",         icon: Receipt,     roles: ["ADMIN", "BILLING", "RECEPTIONIST"] },
     ],
   },
-  { type: "item", href: "/opd", label: "OPD Queue", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
   { type: "item", href: "/patients", label: "Patients", icon: Users, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR", "BILLING"] },
   { type: "item", href: "/appointments", label: "Appointments", icon: CalendarDays, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
   { type: "item", href: "/appointments/schedule", label: "Doctor Schedule", icon: LayoutList, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
@@ -49,10 +52,15 @@ export function Sidebar() {
   // Auto-expand groups when navigating to a child route
   useEffect(() => {
     NAV.forEach((entry) => {
-      if (entry.type === "group" && pathname.startsWith(entry.basePath)) {
-        setOpenGroups((prev) =>
-          prev.includes(entry.basePath) ? prev : [...prev, entry.basePath]
-        );
+      if (entry.type === "group") {
+        const onChild =
+          pathname.startsWith(entry.basePath) ||
+          entry.children.some((c) => pathname === c.href);
+        if (onChild) {
+          setOpenGroups((prev) =>
+            prev.includes(entry.basePath) ? prev : [...prev, entry.basePath]
+          );
+        }
       }
     });
   }, [pathname]);
@@ -119,7 +127,9 @@ export function Sidebar() {
 
           // Group
           const group = entry as NavGroup;
-          const isGroupActive = pathname.startsWith(group.basePath);
+          const isGroupActive =
+            pathname.startsWith(group.basePath) ||
+            group.children.some((c) => pathname === c.href);
           const isOpen = openGroups.includes(group.basePath);
           const visibleChildren = group.children.filter((c) => c.roles.includes(role));
 
@@ -144,7 +154,10 @@ export function Sidebar() {
               {isOpen && (
                 <div className="mt-0.5 ml-3 pl-2 border-l border-blue-800/70 space-y-0.5">
                   {visibleChildren.map((child) => {
-                    const isChildActive = pathname === child.href;
+                    const isChildActive =
+                      child.href === "/opd"
+                        ? pathname === "/opd"
+                        : pathname === child.href || pathname.startsWith(child.href + "/");
                     return (
                       <Link
                         key={child.href}
