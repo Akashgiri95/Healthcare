@@ -98,6 +98,12 @@ export default function SchedulePage() {
     enabled: !!doctorId,
   });
 
+  const { data: waitlist = [] } = useQuery<any[]>({
+    queryKey: ["schedule-waitlist", doctorId, selectedDate],
+    queryFn: () => api.get(`/api/appointments/waitlist?doctor_id=${doctorId}&preferred_date=${selectedDate}`).then(r => r.data),
+    enabled: !!doctorId,
+  });
+
   const { data: slotInfo } = useQuery<any>({
     queryKey: ["schedule-slots", doctorId, selectedDate],
     queryFn: () => api.get(`/api/appointments/available-slots?doctor_id=${doctorId}&date=${selectedDate}`).then(r => r.data),
@@ -341,6 +347,40 @@ export default function SchedulePage() {
                   </div>
                 );
               })}
+
+              {/* Waitlist panel */}
+              {doctorId && (waitlist as any[]).length > 0 && (
+                <div className="border-t-4 border-amber-200 bg-amber-50">
+                  <div className="px-4 py-3 flex items-center gap-2 border-b border-amber-200">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    <p className="text-sm font-semibold text-amber-800">
+                      Waitlist — {(waitlist as any[]).length} patient{(waitlist as any[]).length > 1 ? "s" : ""} waiting
+                    </p>
+                  </div>
+                  <div className="divide-y divide-amber-100">
+                    {(waitlist as any[]).map((w: any) => (
+                      <div key={w.id} className="flex items-center gap-3 px-4 py-3">
+                        <div className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                          {w.position}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">{w.patient_name}</p>
+                          <p className="text-xs text-gray-500">{w.patient_uhid}</p>
+                          {w.notes && <p className="text-xs text-amber-700 italic mt-0.5">{w.notes}</p>}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs text-gray-400">
+                            Added {new Date(w.added_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                          {w.notified_at && (
+                            <p className="text-[10px] text-green-600 mt-0.5">Notified</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

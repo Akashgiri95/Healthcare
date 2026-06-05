@@ -116,6 +116,34 @@ export default function JourneyAppointmentPage() {
     }
   }, [feeEstimate?.visit_type]);
 
+  // ── Waitlist ──────────────────────────────────────────────────────────────────
+  const [showWaitlist, setShowWaitlist] = useState(false);
+  const [waitlistNotes, setWaitlistNotes] = useState("");
+  const [waitlistDone, setWaitlistDone] = useState<{ position: number } | null>(null);
+
+  const waitlistMut = useMutation({
+    mutationFn: (body: object) => api.post("/api/appointments/waitlist", body).then(r => r.data),
+    onSuccess: (data) => {
+      setWaitlistDone({ position: data.position });
+      setShowWaitlist(false);
+      setWaitlistNotes("");
+      toast.success(`Added to waitlist — position #${data.position}`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Waitlist failed"),
+  });
+
+  function handleJoinWaitlist() {
+    if (!selectedPatient || !doctorId || !deptId) return;
+    const effectiveDate = apptType === "WALK_IN" ? todayStr : apptDate;
+    waitlistMut.mutate({
+      patient_id: selectedPatient.id,
+      doctor_id: Number(doctorId),
+      department_id: Number(deptId),
+      preferred_date: effectiveDate,
+      notes: waitlistNotes || undefined,
+    });
+  }
+
   // ── Mutations ─────────────────────────────────────────────────────────────────
   const quickRegMut = useMutation({
     mutationFn: (body: typeof qrForm) => api.post("/api/patients/quick-register", body).then(r => r.data),
@@ -567,19 +595,69 @@ export default function JourneyAppointmentPage() {
                 )}
 
                 {/* Walk-in note */}
-                {apptType === "WALK_IN" && (
+                {apptType === "WALK_IN" && !slotInfo?.is_full && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
                     Token will be assigned immediately and patient auto-checked in.
                   </div>
                 )}
 
-                <Button onClick={handleBook} disabled={bookMut.isPending || slotInfo?.is_full}
-                  className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-base">
-                  <Ticket className="w-4 h-4 mr-2" />
-                  {slotInfo?.is_full ? "Slot Full — Cannot Book" :
-                    bookMut.isPending ? "Booking & Checking In…" : "Book & Check In"}
-                  {!slotInfo?.is_full && <ChevronRight className="w-4 h-4 ml-2" />}
-                </Button>
+                {/* Slot full — waitlist */}
+                {slotInfo?.is_full ? (
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-red-700">Slot Full — {slotInfo.booked}/{slotInfo.max} booked</p>
+                        <p className="text-xs text-red-500 mt-0.5">No appointments available. Add patient to the waitlist.</p>
+                      </div>
+                    </div>
+
+                    {waitlistDone ? (
+                      <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center font-bold shrink-0">
+                          #{waitlistDone.position}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-green-800">Added to Waitlist</p>
+                          <p className="text-xs text-green-600">Position #{waitlistDone.position} — patient will be notified when a slot opens.</p>
+                        </div>
+                      </div>
+                    ) : showWaitlist ? (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                        <p className="text-sm font-semibold text-amber-800">Join Waitlist</p>
+                        <div>
+                          <Label className="text-xs">Notes (optional)</Label>
+                          <Textarea
+                            className="mt-1 text-sm h-16 resize-none"
+                            placeholder="e.g. Urgent follow-up, prefers morning slot…"
+                            value={waitlistNotes}
+                            onChange={e => setWaitlistNotes(e.target.value)}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowWaitlist(false)}>Cancel</Button>
+                          <Button size="sm" className="flex-1 bg-amber-600 hover:bg-amber-700"
+                            onClick={handleJoinWaitlist} disabled={waitlistMut.isPending}>
+                            {waitlistMut.isPending ? "Adding…" : "Confirm Waitlist"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                        onClick={() => setShowWaitlist(true)}>
+                        <Users className="w-4 h-4 mr-2" />
+                        Add to Waitlist
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <Button onClick={handleBook} disabled={bookMut.isPending}
+                    className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-base">
+                    <Ticket className="w-4 h-4 mr-2" />
+                    {bookMut.isPending ? "Booking & Checking In…" : "Book & Check In"}
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                )}
               </div>
             )}
           </div>
