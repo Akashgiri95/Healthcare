@@ -112,6 +112,25 @@ function StepPrompt({ n, label, active }: { n: number; label: string; active: bo
   );
 }
 
+function ProgressBar({ step }: { step: number }) {
+  const pct = Math.round(((step - 1) / 3) * 100);
+  const labels = ["Patient", "Doctor", "Time", "Ready"];
+  return (
+    <div className="px-4 pt-3 pb-2 border-b space-y-1.5">
+      <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
+        <div className="h-full bg-blue-500 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex justify-between">
+        {labels.map((label, i) => (
+          <span key={label} className={cn("text-[9px] font-semibold",
+            i + 1 <= step ? "text-blue-600" : "text-gray-300")}>{label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Patient = {
@@ -640,8 +659,8 @@ export default function NewAppointmentPage() {
 
             {/* 2 — Department filter + doctor cards */}
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <SectionLabel>Doctor</SectionLabel>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Doctor</span>
                 <Select value={deptId || "ALL"} onValueChange={v => { setDeptId(v === "ALL" ? "" : (v ?? "")); setDoctorId(""); setApptTime(""); }}>
                   <SelectTrigger className="h-7 text-xs w-44 shrink-0">
                     <SelectValue placeholder="All departments" />
@@ -654,71 +673,91 @@ export default function NewAppointmentPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="h-px bg-gray-100 mb-3" />
 
               {doctors.length === 0 ? (
                 <p className="text-sm text-gray-400 py-3 text-center">No doctors available</p>
-              ) : (
-                <div className="space-y-2">
-                  {(doctors as any[]).map(doc => {
-                    const isSelected = doctorId === String(doc.id);
-                    const avatarCls  = deptColor(doc.department_name || "");
-                    return (
-                      <button key={doc.id}
-                        onClick={() => { setDoctorId(String(doc.id)); setApptTime(""); }}
-                        className={cn(
-                          "w-full text-left p-3.5 rounded-xl border-2 transition-all relative",
-                          isSelected
-                            ? "border-blue-500 bg-blue-50 shadow-md ring-1 ring-blue-100"
-                            : "border-gray-200 bg-white hover:border-blue-200 hover:shadow-sm"
+              ) : (() => {
+                const renderDoc = (doc: any) => {
+                  const isSelected = doctorId === String(doc.id);
+                  const avatarCls  = deptColor(doc.department_name || "");
+                  return (
+                    <button key={doc.id}
+                      onClick={() => { setDoctorId(String(doc.id)); setApptTime(""); }}
+                      className={cn(
+                        "w-full text-left p-3.5 rounded-xl border-2 transition-all relative",
+                        isSelected
+                          ? "border-blue-500 bg-blue-50 shadow-md ring-1 ring-blue-100"
+                          : "border-gray-200 bg-white hover:border-blue-200 hover:shadow-sm"
+                      )}>
+                      {isSelected && (
+                        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                        </div>
+                      )}
+                      <div className="flex items-start gap-3 pr-6">
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-xs font-bold select-none transition-all",
+                          isSelected ? "bg-blue-600 text-white" : avatarCls
                         )}>
-                        {isSelected && (
-                          <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                          {doc.full_name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{doc.full_name}</p>
+                            {doc.consultation_fee != null && (
+                              <span className={cn("text-sm font-bold shrink-0", isSelected ? "text-blue-700" : "text-gray-700")}>
+                                ₹{Number(doc.consultation_fee).toLocaleString("en-IN")}
+                              </span>
+                            )}
                           </div>
-                        )}
-                        <div className="flex items-start gap-3 pr-6">
-                          <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-xs font-bold select-none transition-all",
-                            isSelected ? "bg-blue-600 text-white" : avatarCls
-                          )}>
-                            {doc.full_name.split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-gray-900 truncate">{doc.full_name}</p>
-                              {doc.consultation_fee != null && (
-                                <span className={cn("text-sm font-bold shrink-0", isSelected ? "text-blue-700" : "text-gray-700")}>
-                                  ₹{Number(doc.consultation_fee).toLocaleString("en-IN")}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500">{doc.specialization}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-gray-400">{doc.department_name}</p>
-                              {doc.experience_years && (
-                                <p className="text-xs text-gray-400">· {doc.experience_years} yrs · {doc.avg_consultation_minutes} min/patient</p>
-                              )}
-                            </div>
+                          <p className="text-xs text-gray-500">{doc.specialization}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs text-gray-400">{doc.department_name}</p>
+                            {doc.experience_years && (
+                              <p className="text-xs text-gray-400">· {doc.experience_years} yrs · {doc.avg_consultation_minutes} min/patient</p>
+                            )}
                           </div>
                         </div>
-                        {isSelected && slotAvail && (
-                          <div className="mt-3 flex items-center gap-2">
-                            <div className="h-1.5 flex-1 rounded-full bg-blue-100 overflow-hidden">
-                              <div className={cn("h-full rounded-full transition-all",
-                                slotAvail.is_full ? "bg-red-500" : slotPct >= 0.8 ? "bg-amber-500" : "bg-green-500")}
-                                style={{ width: `${Math.min(100, slotPct * 100)}%` }} />
-                            </div>
-                            <span className={cn("text-xs font-semibold shrink-0",
-                              slotAvail.is_full ? "text-red-600" : slotPct >= 0.8 ? "text-amber-600" : "text-green-600")}>
-                              {slotAvail.is_full ? "Full" : `${slotAvail.available} slots free`}
-                            </span>
+                      </div>
+                      {isSelected && slotAvail && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <div className="h-1.5 flex-1 rounded-full bg-blue-100 overflow-hidden">
+                            <div className={cn("h-full rounded-full transition-all",
+                              slotAvail.is_full ? "bg-red-500" : slotPct >= 0.8 ? "bg-amber-500" : "bg-green-500")}
+                              style={{ width: `${Math.min(100, slotPct * 100)}%` }} />
                           </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                          <span className={cn("text-xs font-semibold shrink-0",
+                            slotAvail.is_full ? "text-red-600" : slotPct >= 0.8 ? "text-amber-600" : "text-green-600")}>
+                            {slotAvail.is_full ? "Full" : `${slotAvail.available} slots free`}
+                          </span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                };
+
+                return deptId ? (
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
+                    {(doctors as any[]).map(renderDoc)}
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-80 overflow-y-auto pr-0.5">
+                    {Object.entries(
+                      (doctors as any[]).reduce((acc: Record<string, any[]>, doc) => {
+                        const k = doc.department_name || "Other";
+                        (acc[k] = acc[k] || []).push(doc);
+                        return acc;
+                      }, {})
+                    ).map(([dept, docs]) => (
+                      <div key={dept}>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">{dept}</p>
+                        <div className="space-y-2">{(docs as any[]).map(renderDoc)}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* 3 — Date (non-walk-in) */}
@@ -730,8 +769,16 @@ export default function NewAppointmentPage() {
               </div>
             )}
 
+            {/* 4 — No schedule banner */}
+            {doctorId && apptType !== "WALK_IN" && slotAvail && !slotAvail.has_schedule && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                <CalendarX className="w-4 h-4 shrink-0" />
+                No schedule on {apptDate}. Try a different date.
+              </div>
+            )}
+
             {/* 4 — Time slot picker (non-walk-in) */}
-            {doctorId && apptType !== "WALK_IN" && slotAvail && (
+            {doctorId && apptType !== "WALK_IN" && slotAvail && slotAvail.has_schedule && (
               <div>
                 <SectionLabel>Time Slot</SectionLabel>
                 <div className="bg-white rounded-xl border p-4 space-y-4">
@@ -828,6 +875,8 @@ export default function NewAppointmentPage() {
             <div className="px-4 py-2.5 border-b bg-gray-50">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Appointment Summary</p>
             </div>
+
+            <ProgressBar step={summaryStep} />
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
 
@@ -987,12 +1036,21 @@ export default function NewAppointmentPage() {
                   )}
                 </div>
               ) : (
-                <Button onClick={handleBook} disabled={!canBook || bookMut.isPending}
-                  className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-sm font-semibold">
-                  <Ticket className="w-4 h-4 mr-2" />
-                  {bookMut.isPending ? "Booking…" : "Confirm Appointment"}
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
+                <>
+                  <Button onClick={handleBook} disabled={!canBook || bookMut.isPending}
+                    className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-sm font-semibold">
+                    <Ticket className="w-4 h-4 mr-2" />
+                    {bookMut.isPending ? "Booking…" : "Confirm Appointment"}
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                  {!canBook && (
+                    <p className="text-[11px] text-center text-gray-400">
+                      {!selectedPatient ? "Select a patient to continue" :
+                       !doctorId ? "Choose a doctor to continue" :
+                       "Pick a time slot to continue"}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>

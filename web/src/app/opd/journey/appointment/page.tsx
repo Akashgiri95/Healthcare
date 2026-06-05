@@ -106,6 +106,25 @@ function StepPrompt({ n, label, active }: { n: number; label: string; active: bo
   );
 }
 
+function ProgressBar({ step }: { step: number }) {
+  const pct = Math.round(((step - 1) / 3) * 100);
+  const labels = ["Patient", "Doctor", "Time", "Ready"];
+  return (
+    <div className="px-4 pt-3 pb-2 border-b space-y-1.5">
+      <div className="h-1 rounded-full bg-gray-100 overflow-hidden">
+        <div className="h-full bg-blue-500 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex justify-between">
+        {labels.map((label, i) => (
+          <span key={label} className={cn("text-[9px] font-semibold",
+            i + 1 <= step ? "text-blue-600" : "text-gray-300")}>{label}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function JourneyAppointmentPage() {
@@ -574,7 +593,7 @@ export default function JourneyAppointmentPage() {
                 {doctors.length === 0 ? (
                   <p className="text-sm text-gray-400 py-2">No doctors available in this department</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
                     {(doctors as any[]).map(doc => {
                       const isSelected = doctorId === String(doc.id);
                       const avatarCls  = deptColor(doc.department_name || "");
@@ -647,8 +666,16 @@ export default function JourneyAppointmentPage() {
               </div>
             )}
 
+            {/* 5 — No schedule banner */}
+            {doctorId && apptType !== "WALK_IN" && slotInfo && !slotInfo.has_schedule && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                <CalendarX className="w-4 h-4 shrink-0" />
+                No schedule on {apptDate}. Try a different date.
+              </div>
+            )}
+
             {/* 5 — Time slot picker (non-walk-in) */}
-            {doctorId && apptType !== "WALK_IN" && slotInfo && (
+            {doctorId && apptType !== "WALK_IN" && slotInfo && slotInfo.has_schedule && (
               <div>
                 <SectionLabel>Time Slot</SectionLabel>
                 <div className="bg-white rounded-xl border p-4 space-y-4">
@@ -745,6 +772,8 @@ export default function JourneyAppointmentPage() {
             <div className="px-4 py-2.5 border-b bg-gray-50">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Appointment Summary</p>
             </div>
+
+            <ProgressBar step={summaryStep} />
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
 
@@ -909,12 +938,22 @@ export default function JourneyAppointmentPage() {
                   )}
                 </div>
               ) : (
-                <Button onClick={handleBook} disabled={!canBook || bookMut.isPending}
-                  className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-sm font-semibold">
-                  <Ticket className="w-4 h-4 mr-2" />
-                  {bookMut.isPending ? "Booking…" : apptType === "WALK_IN" ? "Book & Check In" : "Confirm Appointment"}
-                  <ChevronRight className="w-4 h-4 ml-2" />
-                </Button>
+                <>
+                  <Button onClick={handleBook} disabled={!canBook || bookMut.isPending}
+                    className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-sm font-semibold">
+                    <Ticket className="w-4 h-4 mr-2" />
+                    {bookMut.isPending ? "Booking…" : apptType === "WALK_IN" ? "Book & Check In" : "Confirm Appointment"}
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                  {!canBook && (
+                    <p className="text-[11px] text-center text-gray-400">
+                      {!selectedPatient ? "Select a patient to continue" :
+                       !deptId ? "Choose a department to continue" :
+                       !doctorId ? "Choose a doctor to continue" :
+                       "Pick a time slot to continue"}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>
