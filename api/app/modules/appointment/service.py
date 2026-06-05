@@ -1,6 +1,6 @@
 from sqlmodel import Session, select, func
 from app.db.models import Appointment, Visit, Doctor, Department, DoctorSlot, AppointmentStatus
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, time as time_type
 
 
 def generate_appointment_no(session: Session) -> str:
@@ -44,12 +44,48 @@ def get_slot_availability(session: Session, doctor_id: int, appt_date: date) -> 
 
     max_patients = sum(s.max_patients for s in slots) if slots else 20
 
+    # Fetch all appointments for this doctor+date to compute per-slot counts
+    day_appts = session.exec(
+        select(Appointment).where(
+            Appointment.doctor_id == doctor_id,
+            Appointment.appointment_date == appt_date,
+            Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+        )
+    ).all()
+
+    # Get slot duration from doctor's avg_consultation_minutes (default 10)
+    doctor = session.get(Doctor, doctor_id)
+    duration_min = (doctor.avg_consultation_minutes if doctor and doctor.avg_consultation_minutes else 10)
+
+    # Generate individual time slots from schedule windows
+    time_slots = []
+    for s in slots:
+        current = datetime.combine(appt_date, s.start_time)
+        end = datetime.combine(appt_date, s.end_time)
+        while current + timedelta(minutes=duration_min) <= end:
+            slot_start = current.time()
+            slot_end = (current + timedelta(minutes=duration_min)).time()
+            slot_booked = sum(
+                1 for a in day_appts
+                if a.appointment_time is not None
+                and slot_start <= a.appointment_time < slot_end
+            )
+            time_slots.append({
+                "time": slot_start.strftime("%H:%M"),
+                "end_time": slot_end.strftime("%H:%M"),
+                "booked": slot_booked,
+                "is_full": slot_booked >= 1,
+            })
+            current += timedelta(minutes=duration_min)
+
     return {
         "date": appt_date.isoformat(),
         "slots": [
             {"start": s.start_time.strftime("%H:%M"), "end": s.end_time.strftime("%H:%M"), "max": s.max_patients}
             for s in slots
         ],
+        "time_slots": time_slots,
+        "slot_duration_min": duration_min,
         "booked": booked,
         "available": max(0, max_patients - booked),
         "max": max_patients,

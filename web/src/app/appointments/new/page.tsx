@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Search, UserPlus, CheckCircle, AlertTriangle, Printer,
   ChevronLeft, Users, CalendarX, IndianRupee, ArrowRight,
@@ -57,40 +59,6 @@ function AppointmentSlip({ appt, patient, doctor }: { appt: any; patient: Patien
   );
 }
 
-// ── Slot availability pill ────────────────────────────────────────────────────
-function SlotPill({ avail }: { avail: any }) {
-  if (!avail) return null;
-
-  const pct = avail.max > 0 ? avail.booked / avail.max : 0;
-  const color = avail.is_full
-    ? "bg-red-100 text-red-700 border-red-200"
-    : pct >= 0.8
-    ? "bg-amber-100 text-amber-700 border-amber-200"
-    : "bg-green-100 text-green-700 border-green-200";
-
-  if (!avail.has_schedule) {
-    return (
-      <div className="flex items-center gap-1.5 text-xs text-gray-400 border rounded-md px-3 py-1.5">
-        <Users className="w-3.5 h-3.5" />
-        No schedule — walk-in allowed &nbsp;·&nbsp; {avail.booked} booked today
-      </div>
-    );
-  }
-
-  return (
-    <div className={`flex items-center gap-1.5 text-xs border rounded-md px-3 py-1.5 ${color}`}>
-      <Users className="w-3.5 h-3.5" />
-      {avail.is_full
-        ? `Slot full — ${avail.booked}/${avail.max} patients`
-        : `${avail.available} of ${avail.max} slots remaining · ${avail.booked} booked`}
-      {avail.slots?.length > 0 && (
-        <span className="ml-2 text-gray-500">
-          ({avail.slots.map((s: any) => `${s.start}–${s.end}`).join(", ")})
-        </span>
-      )}
-    </div>
-  );
-}
 
 export default function NewAppointmentPage() {
   const router = useRouter();
@@ -508,11 +476,9 @@ export default function NewAppointmentPage() {
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Date *</label>
-                      <Input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} min={today} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 mb-1 block">Time *</label>
-                      <Input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} />
+                      <Input type="date" value={apptDate}
+                        onChange={(e) => { setApptDate(e.target.value); setApptTime("09:00"); }}
+                        min={today} />
                     </div>
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">Appointment Type</label>
@@ -545,8 +511,73 @@ export default function NewAppointmentPage() {
                     </div>
                   </div>
 
-                  {/* FIX 1a — Slot availability */}
-                  {doctorId && apptDate && <SlotPill avail={slotAvail} />}
+                  {/* Time slot picker */}
+                  {doctorId && apptDate && slotAvail && (
+                    <div className="rounded-xl border bg-gray-50 p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+                          <Users className="w-3.5 h-3.5" />
+                          Select Time Slot
+                        </div>
+                        <Badge className={cn("text-xs",
+                          slotAvail.is_full ? "bg-red-100 text-red-700" :
+                          (slotAvail.booked / Math.max(slotAvail.max, 1)) >= 0.8 ? "bg-amber-100 text-amber-700"
+                          : "bg-green-100 text-green-700")}>
+                          {slotAvail.is_full ? "FULL" : `${slotAvail.available} free`}
+                        </Badge>
+                      </div>
+
+                      {slotAvail.time_slots?.length > 0 ? (
+                        <>
+                          <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-green-500 inline-block" />Free</span>
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-red-400 inline-block" />Booked</span>
+                            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-blue-600 inline-block" />Selected</span>
+                          </div>
+                          {slotAvail.slots.map((win: any, wi: number) => (
+                            <div key={wi}>
+                              <p className="text-[10px] text-gray-400 font-medium mb-1.5">{win.start} – {win.end}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {slotAvail.time_slots
+                                  .filter((ts: any) => ts.time >= win.start && ts.time < win.end)
+                                  .map((ts: any) => (
+                                    <button
+                                      key={ts.time}
+                                      disabled={ts.is_full}
+                                      onClick={() => setApptTime(ts.time)}
+                                      className={cn(
+                                        "px-2.5 py-1 rounded-md text-xs font-medium border transition-all",
+                                        apptTime === ts.time
+                                          ? "bg-blue-600 border-blue-600 text-white shadow"
+                                          : ts.is_full
+                                          ? "bg-red-50 border-red-200 text-red-400 cursor-not-allowed line-through"
+                                          : "bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-400"
+                                      )}
+                                    >
+                                      {ts.time}
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                          ))}
+                          {apptTime && (
+                            <p className="text-xs text-blue-700 font-medium">
+                              Selected: {apptTime} ({slotAvail.slot_duration_min} min slot)
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-400 text-center py-2">
+                          No schedule configured for {apptDate}. Enter time manually:
+                        </p>
+                      )}
+
+                      {/* Fallback manual time input if no schedule slots */}
+                      {slotAvail.time_slots?.length === 0 && (
+                        <Input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} />
+                      )}
+                    </div>
+                  )}
 
                   {/* FIX 3 — Fee estimate */}
                   {feeEstimate && (
