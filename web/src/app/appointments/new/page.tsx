@@ -159,7 +159,7 @@ function AppointmentSlip({ appt, patient, doctor }: { appt: any; patient: Patien
 
 export default function NewAppointmentPage() {
   const router = useRouter();
-  const { setPatient, setAppointment, reset } = useJourneyStore();
+  const { patient: journeyPatient, setPatient, setAppointment, reset } = useJourneyStore();
   const today = format(new Date(), "yyyy-MM-dd");
 
   // ── State ─────────────────────────────────────────────────────────────────────
@@ -175,6 +175,23 @@ export default function NewAppointmentPage() {
     debounceRef.current = setTimeout(() => setDebouncedQ(q), 350);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [q]);
+
+  // Pre-select patient carried forward from Register Patient step
+  useEffect(() => {
+    if (journeyPatient && !selectedPatient) {
+      const parts = journeyPatient.name.split(" ");
+      setSelectedPatient({
+        id: journeyPatient.id,
+        uhid: journeyPatient.uhid,
+        first_name: parts[0],
+        last_name: parts.slice(1).join(" "),
+        phone: journeyPatient.phone,
+        date_of_birth: journeyPatient.dob,
+        gender: journeyPatient.gender,
+        blood_group: journeyPatient.blood_group,
+      });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [apptType, setApptType]         = useState("WALK_IN");
   const [deptId, setDeptId]             = useState("");

@@ -12,11 +12,13 @@ import { useMutation } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useJourneyStore } from "@/store/journey";
 
 const INDIAN_STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu & Kashmir", "Ladakh", "Chandigarh", "Puducherry"];
 
 export default function NewPatientPage() {
   const router = useRouter();
+  const { setPatient } = useJourneyStore();
   const [form, setForm] = useState({
     first_name: "", middle_name: "", last_name: "",
     date_of_birth: "", gender: "", blood_group: "",
@@ -33,8 +35,18 @@ export default function NewPatientPage() {
   const mutation = useMutation({
     mutationFn: (data: any) => api.post("/api/patients", data),
     onSuccess: (res) => {
-      toast.success(`Patient registered — UHID: ${res.data.uhid}`);
-      router.push(`/patients/${res.data.id}`);
+      const p = res.data;
+      setPatient({
+        id: p.id,
+        uhid: p.uhid,
+        name: `${p.first_name} ${p.last_name}`,
+        gender: p.gender,
+        dob: p.date_of_birth,
+        phone: p.phone,
+        blood_group: p.blood_group,
+      });
+      toast.success(`Registered — UHID: ${p.uhid}. Now book an appointment.`);
+      router.push("/appointments/new");
     },
     onError: () => toast.error("Failed to register patient"),
   });
