@@ -53,11 +53,15 @@ def _enrich(session: Session, appts: list) -> list:
         doc = session.get(Doctor, a.doctor_id)
         doc_user = session.get(User, doc.user_id) if doc else None
         dept = session.get(Department, a.department_id)
+        profile_complete = bool(
+            pat and pat.city and pat.address_line1 and pat.address_line1 != "To be updated"
+        )
         result.append({
             **a.model_dump(),
             "patient_name": f"{pat.first_name} {pat.last_name}" if pat else "",
             "patient_uhid": pat.uhid if pat else "",
             "patient_phone": pat.phone if pat else "",
+            "patient_profile_complete": profile_complete,
             "doctor_name": doc_user.full_name if doc_user else "",
             "department_name": dept.name if dept else "",
         })

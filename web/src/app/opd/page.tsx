@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   X, Clock, UserPlus, Search, ChevronRight, CheckCircle2,
   Users, Loader2, Activity, AlertTriangle, ArrowRight,
+  ClipboardEdit,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -74,6 +75,13 @@ export default function OPDQueuePage() {
   const [wiComplaint, setWiComplaint] = useState("");
   const [wiUrgent, setWiUrgent] = useState(false);
 
+  // Profile completion panel state (for pre-booked patients with partial profiles)
+  const [profileAppt, setProfileAppt] = useState<any>(null); // the appointment being processed
+  const [profileForm, setProfileForm] = useState({
+    address_line1: "", city: "", district: "", state: "Gujarat", pincode: "",
+    emergency_contact_name: "", emergency_contact_phone: "",
+  });
+
   // ── Queries ──────────────────────────────────────────────────────────────
 
   const { data: appointments = [], isLoading } = useQuery({
@@ -119,6 +127,49 @@ export default function OPDQueuePage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["opd-queue"] });
       toast.success("Appointment cancelled");
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed"),
+  });
+
+  // Save profile then check-in (for partial-profile pre-booked patients)
+  const profileAndCheckInMutation = useMutation({
+    mutationFn: async () => {
+      const appt = profileAppt!;
+      const payload: any = {};
+      if (profileForm.address_line1) payload.address_line1 = profileForm.address_line1;
+      if (profileForm.city)          payload.city          = profileForm.city;
+      if (profileForm.district)      payload.district      = profileForm.district;
+      if (profileForm.state)         payload.state         = profileForm.state;
+      if (profileForm.pincode)       payload.pincode       = profileForm.pincode;
+      if (profileForm.emergency_contact_name)  payload.emergency_contact_name  = profileForm.emergency_contact_name;
+      if (profileForm.emergency_contact_phone) payload.emergency_contact_phone = profileForm.emergency_contact_phone;
+
+      await api.put(`/api/patients/${appt.patient_id}`, payload);
+
+      const [checkInRes, patRes] = await Promise.all([
+        api.post(`/api/appointments/${appt.id}/checkin`),
+        api.get(`/api/patients/${appt.patient_id}`),
+      ]);
+      return { checkin: checkInRes.data, patient: patRes.data, appt };
+    },
+    onSuccess: ({ checkin, patient, appt }) => {
+      setPatient({
+        id: patient.id, uhid: patient.uhid,
+        name: `${patient.first_name} ${patient.last_name}`,
+        gender: patient.gender, dob: patient.date_of_birth,
+        phone: patient.phone, blood_group: patient.blood_group,
+      });
+      setAppointment(
+        { id: appt.id, appointment_no: appt.appointment_no, token_number: appt.token_number,
+          doctor_name: appt.doctor_name, department_name: appt.department_name },
+        checkin.visit_id, checkin.visit_no,
+      );
+      completeStep(1);
+      completeStep(2);
+      qc.invalidateQueries({ queryKey: ["opd-queue"] });
+      setProfileAppt(null);
+      toast.success("Profile saved & checked in — proceed to Vitals");
+      router.push("/opd/journey/vitals");
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Failed"),
   });
@@ -251,6 +302,22 @@ export default function OPDQueuePage() {
     setWalkInOpen(false);
   }
 
+  function openProfilePanel(appt: any) {
+    setProfileAppt(appt);
+    setProfileForm({
+      address_line1: "", city: "", district: "", state: "Gujarat", pincode: "",
+      emergency_contact_name: "", emergency_contact_phone: "",
+    });
+  }
+
+  function handleScheduledCheckIn(appt: any) {
+    if (!appt.patient_profile_complete) {
+      openProfilePanel(appt);
+    } else {
+      checkInMutation.mutate(appt);
+    }
+  }
+
   const filtered = appointments.filter(
     (a: any) =>
       doctorFilter === "all" || a.doctor_id === parseInt(doctorFilter)
@@ -357,7 +424,7 @@ export default function OPDQueuePage() {
                         appointment={a}
                         onCheckIn={
                           key === "SCHEDULED"
-                            ? () => checkInMutation.mutate(a)
+                            ? () => handleScheduledCheckIn(a)
                             : undefined
                         }
                         onAdvance={
@@ -731,6 +798,136 @@ export default function OPDQueuePage() {
                   </Button>
                 </>
               )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Profile Completion Panel — for pre-booked patients with partial profile */}
+      {profileAppt && (
+        <>
+          <div className="fixed inset-0 bg-black/30 z-40" onClick={() => setProfileAppt(null)} />
+          <div className="fixed right-0 top-0 h-full w-[420px] bg-white shadow-2xl z-50 flex flex-col">
+            {/* Header */}
+            <div className="bg-amber-600 px-5 py-4 flex items-center justify-between shrink-0">
+              <div>
+                <p className="text-white font-semibold text-base">Complete Patient Profile</p>
+                <p className="text-amber-100 text-xs mt-0.5">
+                  {profileAppt.patient_name} · {profileAppt.patient_uhid}
+                </p>
+              </div>
+              <button onClick={() => setProfileAppt(null)} className="text-amber-200 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Info banner */}
+            <div className="bg-amber-50 border-b border-amber-100 px-5 py-3 flex items-start gap-2 shrink-0">
+              <ClipboardEdit className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">
+                This patient was registered with minimal details (phone booking). Complete their profile before checking in. You can skip optional fields.
+              </p>
+            </div>
+
+            {/* Form */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <Label className="text-xs text-gray-500">Address *</Label>
+                <Input
+                  className="mt-1 text-sm"
+                  placeholder="House / Flat / Street"
+                  value={profileForm.address_line1}
+                  onChange={(e) => setProfileForm(f => ({ ...f, address_line1: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-gray-500">City *</Label>
+                  <Input
+                    className="mt-1 text-sm"
+                    placeholder="Ahmedabad"
+                    value={profileForm.city}
+                    onChange={(e) => setProfileForm(f => ({ ...f, city: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">District</Label>
+                  <Input
+                    className="mt-1 text-sm"
+                    value={profileForm.district}
+                    onChange={(e) => setProfileForm(f => ({ ...f, district: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-gray-500">State</Label>
+                  <Input
+                    className="mt-1 text-sm"
+                    value={profileForm.state}
+                    onChange={(e) => setProfileForm(f => ({ ...f, state: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Pincode</Label>
+                  <Input
+                    className="mt-1 text-sm"
+                    placeholder="380001"
+                    value={profileForm.pincode}
+                    onChange={(e) => setProfileForm(f => ({ ...f, pincode: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="border-t border-gray-100 pt-3 space-y-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Emergency Contact (optional)</p>
+                <div>
+                  <Label className="text-xs text-gray-500">Contact Name</Label>
+                  <Input
+                    className="mt-1 text-sm"
+                    placeholder="Spouse / Parent name"
+                    value={profileForm.emergency_contact_name}
+                    onChange={(e) => setProfileForm(f => ({ ...f, emergency_contact_name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Contact Phone</Label>
+                  <Input
+                    className="mt-1 text-sm"
+                    type="tel"
+                    value={profileForm.emergency_contact_phone}
+                    onChange={(e) => setProfileForm(f => ({ ...f, emergency_contact_phone: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 flex gap-3 shrink-0">
+              <Button
+                variant="outline"
+                className="flex-none text-xs"
+                onClick={() => checkInMutation.mutate(profileAppt)}
+                disabled={checkInMutation.isPending || profileAndCheckInMutation.isPending}
+              >
+                Skip & Check In
+              </Button>
+              <Button
+                className="flex-1 bg-amber-600 hover:bg-amber-700"
+                disabled={
+                  !profileForm.address_line1 || !profileForm.city ||
+                  profileAndCheckInMutation.isPending || checkInMutation.isPending
+                }
+                onClick={() => profileAndCheckInMutation.mutate()}
+              >
+                {profileAndCheckInMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                ) : (
+                  <>
+                    <Activity className="w-4 h-4 mr-2" />
+                    Save Profile & Check In
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </>
