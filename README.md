@@ -1,6 +1,6 @@
 # Healthcare — Engineering Projects
 
-Monorepo for clinical software built at Adani Healthcare / Adani University.
+Monorepo for clinical healthcare software projects.
 
 ## Projects
 
