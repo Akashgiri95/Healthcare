@@ -1,4 +1,4 @@
-# Adani Healthcare — Engineering Projects
+# Healthcare — Engineering Projects
 
 Monorepo for clinical software built at Adani Healthcare / Adani University.
 
