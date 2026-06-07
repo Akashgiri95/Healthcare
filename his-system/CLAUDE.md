@@ -1,91 +1,61 @@
-# HIS System — Root CLAUDE.md (Vibe Coding Bible)
+# HIS — CLAUDE.md (Quick Reference)
 
-## Project Overview
-Hospital Information System for Tier 1 Indian hospital.
-Currently implementing: OPD Cycle (end-to-end).
+> Full details: see `CLAUDE.local.md`
 
-## Stack
-| Layer | Tech |
+---
+
+## Build Status (2026-05-20)
+
+| Layer | Status |
 |---|---|
-| Frontend | Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui |
-| State | Zustand (auth) + TanStack React Query (server state) |
-| Backend | FastAPI (Python) |
-| ORM | SQLModel (Pydantic + SQLAlchemy combined) |
-| DB | PostgreSQL (local) |
-| Auth | JWT via python-jose + passlib/bcrypt |
+| Backend (FastAPI :8000) | ✅ Running — SQLite dev, PostgreSQL prod |
+| Frontend (React+Vite :5173) | ✅ Running — Tailwind CSS v4 |
+| Auth (JWT + bcrypt) | ✅ 12 demo users seeded (his@1234) |
+| HISContext (shared state) | ✅ 10 cross-dept flows, 5 seed patients |
+| Registration, OPD Queue | ✅ Built |
+| Emergency Reg + ED Queue | ✅ Built — triage, MLC, unknown patient |
+| Doctor Workbench | ✅ Built — 5 tabs |
+| Lab, Pharmacy, Billing | ✅ Built |
+| IPD & Ward | 🔨 Next |
 
-## Directory Structure
-```
-HIS System/
-├── web/          # Next.js frontend (port 3000)
-├── api/          # FastAPI backend (port 8000)
-└── CLAUDE.md     # This file
-```
+---
 
-## Running the Project
+## Dev Commands
+
 ```bash
 # Backend
-cd api
-source venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-
-# Seed database (first time only)
-python seed.py
+cd backend && ./venv/bin/uvicorn app.main:app --port 8000 --reload
 
 # Frontend
-cd web
-npm run dev
+cd frontend && npm run dev
+
+# Seed (run once on fresh DB)
+cd backend && ./venv/bin/python seed.py
+
+# Demo
+open http://localhost:5173   # use quick-login badges
 ```
 
-## Demo Users (password: his@1234)
-| Email | Role |
+---
+
+## Project Rules (every session)
+
+1. **Discuss before coding** — state plan, wait for approval
+2. **One scenario at a time** — complete coverage before moving on
+3. **Everything interlinked** — no isolated screens; use HISContext flows
+4. **Separate venv** — always `backend/venv/`; never system Python
+5. **Discuss architecture changes** — don't change structure silently
+
+---
+
+## Key Decisions (do not re-discuss)
+
+| Decision | Choice |
 |---|---|
-| admin@his.local | ADMIN |
-| reception@his.local | RECEPTIONIST |
-| nurse@his.local | NURSE |
-| billing@his.local | BILLING |
-| dr.mehta@his.local | DOCTOR (General Medicine) |
-| dr.patel@his.local | DOCTOR (Cardiology) |
-
-## OPD Workflow
-```
-Registration → Book Appointment → Check-in → Vitals (Nurse)
-→ Queue → Doctor Consultation (SOAP + ICD-10 + Prescription + Lab)
-→ Billing → Pharmacy Dispensing
-```
-
-## Indian Standards
-- ABHA ID format: XX-XXXX-XXXX-XXXX
-- ICD-10 coding for diagnosis
-- GST on billing (pharmacy/services)
-- NMC registration number for doctors
-- Ayushman Bharat insurance support
-
-## Working Process (MUST FOLLOW)
-1. **Discuss before building** — explain what we're doing and why, get approval, then implement
-2. **Read before editing** — always read web/CLAUDE.md or api/CLAUDE.md before touching files
-3. **One module at a time** — finish it fully before starting the next
-4. **Update ARCHITECTURE.md** — if structure/flow changes, document it there first
-5. **Commit after every meaningful change** — push to GitHub so progress is saved
-6. **Schemas first** — define API schema before writing frontend that calls it
-7. **Never hardcode data** — all demo data comes from api/seed.py
-
-## Key Rules (Claude must follow)
-- DOCTOR role required for consultation endpoints — admin has no Doctor record
-- consultation_no format: CON + YYYYMMDD + 4-digit seq
-- patient_id must be in vitals payload
-- Lab tests named "Complete Blood Count" not "CBC" in seed data
-- Pharmacy module not yet implemented (router missing)
-
-## Module Map
-| Module | API prefix | Frontend route |
-|---|---|---|
-| Auth | /api/auth | /login |
-| Patients | /api/patients | /patients |
-| Appointments | /api/appointments | /appointments |
-| Clinical | /api/clinical | /doctor |
-| Prescriptions | /api/prescriptions | /doctor (tab) |
-| Lab | /api/lab | /lab |
-| Billing | /api/billing | /billing |
-| Pharmacy | /api/pharmacy | /pharmacy |
-| Masters | /api/masters | (dropdowns) |
+| Auth library | Direct `bcrypt` — passlib breaks on Python 3.13 |
+| Frontend data | HISContext shared state — swap API calls in later |
+| Emergency | Separate module — NOT under OPD, NOT under IPD |
+| OPD Queue | Visible in both Registration sidebar AND OPD Management |
+| Master role | Sees ALL departments without switching login |
+| UHID format | `HIS26NNNNN` auto-generated |
+| bcrypt import | `import bcrypt` directly — never `from passlib` |

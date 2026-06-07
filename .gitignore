@@ -1,38 +1,44 @@
 # Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-*.pyd
-.Python
-*.egg-info/
-dist/
-build/
-*.egg
-.eggs/
-.env
-*.env
 venv/
-env/
 .venv/
+*.egg-info/
 
-# FastAPI / SQLite
-*.db
-*.sqlite
-
-# Node / Next.js
+# Node
 node_modules/
 .next/
-out/
-.npm
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+dist/
+build/
 
-# Environment
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Secrets
+.env
+*/.env
+!.env.example
+!*/.env.example
+
+# Model artifacts (rebuild locally — too large for git)
+loinc-predictor/loinc_biobert_models/loinc_embeddings.npy
+loinc-predictor/loinc_biobert_models/loinc_faiss.index
+loinc-predictor/loinc_biobert_models/loinc_meta.json
+loinc-predictor/loinc_biobert_models/loinc_filtered_for_verification.csv
+loinc-predictor/loinc_biobert_models/sbert_finetuned/
+
+# LOINC CSV (licensed — download from loinc.org)
+*.csv
+!tests/fixtures/*.csv
+
+# Patient / clinical data — never commit
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.tiff
+
+# Databases
+*.db
+*.sqlite
 
 # OS
 .DS_Store
@@ -42,7 +48,10 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-*.swo
+.claude/
+*/.claude/
 
-# Test artifacts
-/tmp/his_screenshots/
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
