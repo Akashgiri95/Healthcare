@@ -126,10 +126,25 @@ Registration → Book Appointment → Check-in → Vitals (Nurse)
 1. **Discuss before building** — explain what we're doing and why, get approval, then implement
 2. **Read before editing** — always read web/CLAUDE.md or api/CLAUDE.md before touching files
 3. **One module at a time** — finish it fully before starting the next
-4. **Update ARCHITECTURE.md** — if structure/flow changes, document it there first
+4. **Update docs after every change** — keep documentation in sync with code:
+   - `ARCHITECTURE.md` — if structure/flow changes
+   - `docs/SCHEMA.md` — if database models change
+   - `docs/FLOWS.md` — if workflows change
+   - `CLAUDE.md` — if rules/conventions change
+   - `api/CLAUDE.md` or `web/CLAUDE.md` — if module-specific info changes
 5. **Commit after every meaningful change** — push to GitHub so progress is saved
 6. **Schemas first** — define API schema before writing frontend that calls it
 7. **Never hardcode data** — all demo data comes from api/seed.py
+
+## Documentation Files (Keep Updated)
+| File | Purpose | Update When |
+|------|---------|-------------|
+| `CLAUDE.md` | Project rules, conventions, workflow | Rules/process changes |
+| `ARCHITECTURE.md` | System overview, modules, status | New module added, status changes |
+| `docs/SCHEMA.md` | Database tables, relationships | Models change |
+| `docs/FLOWS.md` | Workflow diagrams, data flow | Workflow changes |
+| `api/CLAUDE.md` | Backend-specific conventions | API patterns change |
+| `web/CLAUDE.md` | Frontend-specific conventions | UI patterns change |
 
 ## Key Rules (Claude must follow)
 - DOCTOR role required for consultation endpoints — admin has no Doctor record
