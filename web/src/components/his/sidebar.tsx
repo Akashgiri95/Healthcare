@@ -44,6 +44,7 @@ const NAV: NavEntry[] = [
   { type: "item", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["ADMIN", "DOCTOR", "NURSE", "RECEPTIONIST", "BILLING", "PHARMACIST", "LAB_TECHNICIAN"] },
   { type: "item", href: "/reception", label: "Reception", icon: MonitorCheck, roles: ["ADMIN", "RECEPTIONIST"] },
   { type: "item", href: "/opd", label: "OPD Queue", icon: Activity, roles: ["ADMIN", "NURSE", "RECEPTIONIST", "DOCTOR"] },
+  { type: "item", href: "/opd/journey/vitals", label: "Vitals / Triage", icon: Activity, roles: ["ADMIN", "NURSE"] },
   { type: "item", href: "/doctor", label: "Doctor Desk", icon: Stethoscope, roles: ["DOCTOR", "ADMIN"] },
   {
     type: "group",
