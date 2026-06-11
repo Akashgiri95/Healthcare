@@ -11,6 +11,76 @@ import math
 router = APIRouter()
 
 
+@router.get("/check-duplicate")
+def check_duplicate(
+    phone: str = Query(...),
+    date_of_birth: str = Query(...),
+    first_name: Optional[str] = Query(None),
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """
+    Check for duplicate patient before registration.
+    Returns matching patients if found.
+    """
+    from datetime import datetime
+    dob = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
+
+    # Check phone + DOB match (strongest duplicate indicator)
+    query = select(Patient).where(
+        Patient.is_active == True,
+        Patient.phone == phone,
+        Patient.date_of_birth == dob,
+    )
+    matches = session.exec(query).all()
+
+    if matches:
+        return {
+            "is_duplicate": True,
+            "match_type": "PHONE_DOB",
+            "matches": [
+                {
+                    "id": p.id,
+                    "uhid": p.uhid,
+                    "first_name": p.first_name,
+                    "last_name": p.last_name,
+                    "phone": p.phone,
+                    "date_of_birth": p.date_of_birth.isoformat(),
+                    "gender": p.gender.value,
+                }
+                for p in matches
+            ],
+        }
+
+    # If no phone+DOB match, check name+DOB (weaker match)
+    if first_name:
+        query = select(Patient).where(
+            Patient.is_active == True,
+            Patient.first_name.ilike(f"%{first_name}%"),
+            Patient.date_of_birth == dob,
+        )
+        matches = session.exec(query).all()
+        if matches:
+            return {
+                "is_duplicate": True,
+                "match_type": "NAME_DOB",
+                "matches": [
+                    {
+                        "id": p.id,
+                        "uhid": p.uhid,
+                        "first_name": p.first_name,
+                        "last_name": p.last_name,
+                        "phone": p.phone,
+                        "date_of_birth": p.date_of_birth.isoformat(),
+                        "gender": p.gender.value,
+                    }
+                    for p in matches
+                ],
+            }
+
+    return {"is_duplicate": False, "matches": []}
+
+
 @router.get("")
 def list_patients(
     q: Optional[str] = Query(None, description="Search by name, phone, UHID"),

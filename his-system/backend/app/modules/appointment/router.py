@@ -168,6 +168,97 @@ def available_slots(
     return get_slot_availability(session, doctor_id, date_)
 
 
+@router.get("/doctors-availability")
+def doctors_availability(
+    date_: date = Query(default=None, alias="date"),
+    department_id: Optional[int] = Query(None),
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """
+    Get all doctors with their availability status for a given date.
+    Used by receptionist to show doctor cards with slots, fees, wait time.
+    """
+    check_date = date_ or date.today()
+
+    # Get doctors (optionally filtered by department)
+    query = select(Doctor).where(Doctor.is_active == True)
+    if department_id:
+        query = query.where(Doctor.department_id == department_id)
+    doctors = session.exec(query).all()
+
+    result = []
+    for doc in doctors:
+        user = session.get(User, doc.user_id)
+        dept = session.get(Department, doc.department_id)
+
+        # Check if doctor is on leave
+        block = session.exec(
+            select(DoctorBlock).where(
+                DoctorBlock.doctor_id == doc.id,
+                DoctorBlock.block_date == check_date,
+                DoctorBlock.is_active == True,
+            )
+        ).first()
+        is_on_leave = block is not None
+
+        # Get slot availability
+        avail = get_slot_availability(session, doc.id, check_date)
+
+        # Calculate estimated wait time
+        avg_mins = doc.avg_consultation_minutes or 10
+        estimated_wait = avail["booked"] * avg_mins
+
+        # Determine availability status
+        if is_on_leave:
+            status = "ON_LEAVE"
+        elif avail["is_full"]:
+            status = "FULL"
+        elif avail["available"] <= 3:
+            status = "FEW_SLOTS"
+        else:
+            status = "AVAILABLE"
+
+        # Calculate fees
+        base_fee = doc.consultation_fee if doc.consultation_fee else (dept.consultation_fee if dept else 500)
+        followup_fee = dept.follow_up_fee if (dept and dept.follow_up_fee) else round(base_fee * 0.3)
+
+        result.append({
+            "doctor_id": doc.id,
+            "doctor_name": user.full_name if user else f"Doctor {doc.id}",
+            "department_id": doc.department_id,
+            "department_name": dept.name if dept else "",
+            "specialization": doc.specialization,
+            "qualification": doc.qualification,
+            "experience_years": doc.experience_years,
+            "registration_number": doc.registration_number,
+            "avg_consultation_minutes": avg_mins,
+
+            # Availability
+            "slots_total": avail["max"],
+            "slots_booked": avail["booked"],
+            "slots_available": avail["available"],
+            "is_on_leave": is_on_leave,
+            "leave_reason": block.reason.value if block else None,
+            "estimated_wait_minutes": estimated_wait if not is_on_leave else None,
+            "availability_status": status,
+
+            # Fees
+            "consultation_fee": base_fee,
+            "follow_up_fee": followup_fee,
+
+            # Schedule info
+            "has_schedule": avail["has_schedule"],
+            "schedule_slots": avail["slots"],
+        })
+
+    # Sort: AVAILABLE first, then FEW_SLOTS, then FULL, then ON_LEAVE
+    status_order = {"AVAILABLE": 0, "FEW_SLOTS": 1, "FULL": 2, "ON_LEAVE": 3}
+    result.sort(key=lambda x: (status_order.get(x["availability_status"], 99), x["estimated_wait_minutes"] or 999))
+
+    return result
+
+
 @router.get("/earliest-available")
 def earliest_available(
     department_id: int = Query(...),
@@ -211,6 +302,156 @@ def today_queue(
     if department_id:
         query = query.where(Appointment.department_id == department_id)
     return session.exec(query.order_by(Appointment.priority.desc(), Appointment.token_number)).all()
+
+
+@router.get("/my-queue")
+def my_queue(
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """
+    Get today's queue for the logged-in doctor.
+    Returns all appointments (not just active) so doctor can see full day.
+    """
+    # Find doctor record for current user
+    doc = session.exec(select(Doctor).where(Doctor.user_id == current_user.id)).first()
+    if not doc:
+        raise HTTPException(403, "Only doctors can access this endpoint")
+
+    today = date.today()
+    query = select(Appointment).where(
+        Appointment.appointment_date == today,
+        Appointment.doctor_id == doc.id,
+        Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+    ).order_by(Appointment.token_number)
+
+    appts = session.exec(query).all()
+
+    # Enrich with patient details
+    result = []
+    for a in appts:
+        pat = session.get(Patient, a.patient_id)
+        dept = session.get(Department, a.department_id)
+
+        # Get vitals if exists
+        visit = session.exec(
+            select(Visit).where(Visit.appointment_id == a.id)
+        ).first()
+
+        vitals_data = None
+        if visit:
+            from app.db.models import Vitals
+            vitals = session.exec(select(Vitals).where(Vitals.visit_id == visit.id)).first()
+            if vitals:
+                vitals_data = {
+                    "bp_systolic": vitals.bp_systolic,
+                    "bp_diastolic": vitals.bp_diastolic,
+                    "pulse": vitals.pulse,
+                    "temperature": float(vitals.temperature) if vitals.temperature else None,
+                    "spo2": vitals.spo2,
+                    "weight": float(vitals.weight) if vitals.weight else None,
+                    "height": float(vitals.height) if vitals.height else None,
+                    "bmi": float(vitals.bmi) if vitals.bmi else None,
+                }
+
+        result.append({
+            **a.model_dump(),
+            "patient_name": f"{pat.first_name} {pat.last_name}" if pat else "",
+            "patient_uhid": pat.uhid if pat else "",
+            "patient_phone": pat.phone if pat else "",
+            "patient_gender": pat.gender.value if pat else "",
+            "patient_dob": pat.date_of_birth.isoformat() if pat and pat.date_of_birth else None,
+            "department_name": dept.name if dept else "",
+            "visit_id": visit.id if visit else None,
+            "vitals": vitals_data,
+        })
+
+    # Also return doctor stats
+    stats = {
+        "total": len(result),
+        "waiting": len([r for r in result if r["status"] in ["CHECKED_IN", "IN_QUEUE"]]),
+        "with_doctor": len([r for r in result if r["status"] == "WITH_DOCTOR"]),
+        "completed": len([r for r in result if r["status"] == "COMPLETED"]),
+    }
+
+    return {"queue": result, "stats": stats, "doctor_id": doc.id, "doctor_name": current_user.full_name}
+
+
+@router.get("/doctor-queue/{doctor_id}")
+def get_doctor_queue(
+    doctor_id: int,
+    session: Session = Depends(get_session),
+    _=Depends(get_current_user),
+):
+    """
+    Get today's queue for a specific doctor (for admin/reception view).
+    """
+    doc = session.get(Doctor, doctor_id)
+    if not doc:
+        raise HTTPException(404, "Doctor not found")
+
+    doc_user = session.get(User, doc.user_id)
+
+    today = date.today()
+    query = select(Appointment).where(
+        Appointment.appointment_date == today,
+        Appointment.doctor_id == doctor_id,
+        Appointment.status.notin_([AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]),
+    ).order_by(Appointment.token_number)
+
+    appts = session.exec(query).all()
+
+    result = []
+    for a in appts:
+        pat = session.get(Patient, a.patient_id)
+        dept = session.get(Department, a.department_id)
+
+        visit = session.exec(
+            select(Visit).where(Visit.appointment_id == a.id)
+        ).first()
+
+        vitals_data = None
+        if visit:
+            from app.db.models import Vitals
+            vitals = session.exec(select(Vitals).where(Vitals.visit_id == visit.id)).first()
+            if vitals:
+                vitals_data = {
+                    "bp_systolic": vitals.bp_systolic,
+                    "bp_diastolic": vitals.bp_diastolic,
+                    "pulse": vitals.pulse,
+                    "temperature": float(vitals.temperature) if vitals.temperature else None,
+                    "spo2": vitals.spo2,
+                    "weight": float(vitals.weight) if vitals.weight else None,
+                    "height": float(vitals.height) if vitals.height else None,
+                    "bmi": float(vitals.bmi) if vitals.bmi else None,
+                }
+
+        result.append({
+            **a.model_dump(),
+            "patient_name": f"{pat.first_name} {pat.last_name}" if pat else "",
+            "patient_uhid": pat.uhid if pat else "",
+            "patient_phone": pat.phone if pat else "",
+            "patient_gender": pat.gender.value if pat else "",
+            "patient_dob": pat.date_of_birth.isoformat() if pat and pat.date_of_birth else None,
+            "department_name": dept.name if dept else "",
+            "visit_id": visit.id if visit else None,
+            "vitals": vitals_data,
+        })
+
+    stats = {
+        "total": len(result),
+        "waiting": len([r for r in result if r["status"] in ["CHECKED_IN", "IN_QUEUE"]]),
+        "with_doctor": len([r for r in result if r["status"] == "WITH_DOCTOR"]),
+        "completed": len([r for r in result if r["status"] == "COMPLETED"]),
+    }
+
+    return {
+        "queue": result,
+        "stats": stats,
+        "doctor_id": doc.id,
+        "doctor_name": doc_user.full_name if doc_user else "",
+        "department_name": session.get(Department, doc.department_id).name if doc.department_id else "",
+    }
 
 
 @router.get("/waitlist")
@@ -318,6 +559,129 @@ def delete_block(
     session.add(block)
     session.commit()
     return {"message": "Block removed"}
+
+
+@router.post("/call-next")
+def call_next_patient(
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """
+    Call the next patient in queue for the logged-in doctor.
+    Changes status from CHECKED_IN/IN_QUEUE to WITH_DOCTOR.
+    """
+    doc = session.exec(select(Doctor).where(Doctor.user_id == current_user.id)).first()
+    if not doc:
+        raise HTTPException(403, "Only doctors can call patients")
+
+    today = date.today()
+
+    # Find next patient in queue (CHECKED_IN or IN_QUEUE, ordered by token)
+    next_appt = session.exec(
+        select(Appointment).where(
+            Appointment.appointment_date == today,
+            Appointment.doctor_id == doc.id,
+            Appointment.status.in_([AppointmentStatus.CHECKED_IN, AppointmentStatus.IN_QUEUE]),
+        ).order_by(Appointment.priority.desc(), Appointment.token_number)
+    ).first()
+
+    if not next_appt:
+        raise HTTPException(404, "No patients waiting in queue")
+
+    # Update status to WITH_DOCTOR
+    next_appt.status = AppointmentStatus.WITH_DOCTOR
+    next_appt.called_at = datetime.now()
+    session.add(next_appt)
+
+    # Log the action
+    _log_action(session, next_appt.id, AuditAction.STATUS_CHANGED, current_user.id, "Called by doctor")
+
+    session.commit()
+    session.refresh(next_appt)
+
+    # Return enriched appointment
+    pat = session.get(Patient, next_appt.patient_id)
+    return {
+        **next_appt.model_dump(),
+        "patient_name": f"{pat.first_name} {pat.last_name}" if pat else "",
+        "patient_uhid": pat.uhid if pat else "",
+        "message": f"Calling patient #{next_appt.token_number}"
+    }
+
+
+@router.post("/{appointment_id}/start-consultation")
+def start_consultation(
+    appointment_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """
+    Mark appointment as WITH_DOCTOR (if not already) and ensure visit record exists.
+    """
+    doc = session.exec(select(Doctor).where(Doctor.user_id == current_user.id)).first()
+    if not doc:
+        raise HTTPException(403, "Only doctors can start consultations")
+
+    appt = session.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    if appt.doctor_id != doc.id:
+        raise HTTPException(403, "This appointment is not assigned to you")
+
+    # Update status
+    if appt.status in [AppointmentStatus.CHECKED_IN, AppointmentStatus.IN_QUEUE]:
+        appt.status = AppointmentStatus.WITH_DOCTOR
+        appt.called_at = datetime.now()
+        session.add(appt)
+        _log_action(session, appt.id, AuditAction.STATUS_CHANGED, current_user.id, "Started consultation")
+
+    # Ensure visit record exists
+    visit = session.exec(select(Visit).where(Visit.appointment_id == appt.id)).first()
+    if not visit:
+        from app.modules.appointment.service import generate_visit_no
+        visit = Visit(
+            visit_no=generate_visit_no(session),
+            patient_id=appt.patient_id,
+            appointment_id=appt.id,
+            department_id=appt.department_id,
+            visit_date=date.today(),
+            visit_type=appt.visit_type,
+        )
+        session.add(visit)
+
+    session.commit()
+    session.refresh(visit)
+
+    return {"appointment": appt.model_dump(), "visit_id": visit.id}
+
+
+@router.post("/{appointment_id}/complete-consultation")
+def complete_consultation(
+    appointment_id: int,
+    session: Session = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    """
+    Mark appointment as COMPLETED after doctor finishes consultation.
+    """
+    doc = session.exec(select(Doctor).where(Doctor.user_id == current_user.id)).first()
+    if not doc:
+        raise HTTPException(403, "Only doctors can complete consultations")
+
+    appt = session.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    if appt.doctor_id != doc.id:
+        raise HTTPException(403, "This appointment is not assigned to you")
+
+    appt.status = AppointmentStatus.COMPLETED
+    appt.completed_at = datetime.now()
+    session.add(appt)
+
+    _log_action(session, appt.id, AuditAction.STATUS_CHANGED, current_user.id, "Consultation completed")
+
+    session.commit()
+    return {"message": "Consultation completed", "appointment_id": appt.id}
 
 
 # ─── Create endpoints ─────────────────────────────────────────────────────────

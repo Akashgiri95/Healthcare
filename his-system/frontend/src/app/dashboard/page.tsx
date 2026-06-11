@@ -84,11 +84,11 @@ export default function DashboardPage() {
                       <div key={a.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                         <div className="flex items-center gap-3">
                           <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">
-                            {a.token_number}
+                            {a.token_number || "-"}
                           </span>
                           <div>
-                            <p className="font-medium text-gray-800">{a.appointment_no}</p>
-                            <p className="text-xs text-gray-400">{a.appointment_type}</p>
+                            <p className="font-medium text-gray-800">{a.patient_name || a.appointment_no}</p>
+                            <p className="text-xs text-gray-400">{a.doctor_name} · {a.department_name}</p>
                           </div>
                         </div>
                         <StatusBadge status={a.status} />
@@ -108,12 +108,12 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: "Register Patient", href: "/patients/new", icon: "👤", color: "bg-blue-50 hover:bg-blue-100 text-blue-700" },
-                    { label: "Book Appointment", href: "/appointments/new", icon: "📅", color: "bg-violet-50 hover:bg-violet-100 text-violet-700" },
+                    { label: "Reception Desk", href: "/reception", icon: "🏥", color: "bg-blue-50 hover:bg-blue-100 text-blue-700" },
                     { label: "OPD Queue", href: "/opd", icon: "🏃", color: "bg-amber-50 hover:bg-amber-100 text-amber-700" },
                     { label: "Doctor Desk", href: "/doctor", icon: "🩺", color: "bg-green-50 hover:bg-green-100 text-green-700" },
-                    { label: "Create Bill", href: "/billing/new", icon: "🧾", color: "bg-rose-50 hover:bg-rose-100 text-rose-700" },
+                    { label: "Billing", href: "/billing", icon: "🧾", color: "bg-rose-50 hover:bg-rose-100 text-rose-700" },
                     { label: "Lab Orders", href: "/lab", icon: "🔬", color: "bg-teal-50 hover:bg-teal-100 text-teal-700" },
+                    { label: "Pharmacy", href: "/pharmacy", icon: "💊", color: "bg-violet-50 hover:bg-violet-100 text-violet-700" },
                   ].map((action) => (
                     <a
                       key={action.href}

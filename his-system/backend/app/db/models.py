@@ -96,6 +96,8 @@ class WaitlistStatus(str, Enum):
 class AuditAction(str, Enum):
     CREATED = "CREATED"
     CHECKED_IN = "CHECKED_IN"
+    CALLED = "CALLED"
+    COMPLETED = "COMPLETED"
     RESCHEDULED = "RESCHEDULED"
     CANCELLED = "CANCELLED"
     NO_SHOW = "NO_SHOW"
@@ -108,6 +110,45 @@ class BlockReason(str, Enum):
     EMERGENCY = "EMERGENCY"
     HOLIDAY = "HOLIDAY"
     OTHER = "OTHER"
+
+
+# ─── Unified Order System Enums ──────────────────────────────────────────────
+
+class OrderType(str, Enum):
+    """What kind of order? Determines which department handles it."""
+    PHARMACY = "PHARMACY"
+    LAB = "LAB"
+    RADIOLOGY = "RADIOLOGY"
+    PROCEDURE = "PROCEDURE"
+    BLOOD = "BLOOD"
+
+
+class OrderStatus(str, Enum):
+    """Universal status flow for all order types."""
+    ORDERED = "ORDERED"
+    ACCEPTED = "ACCEPTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+class OrderPriority(str, Enum):
+    """How urgent is this order?"""
+    ROUTINE = "ROUTINE"
+    URGENT = "URGENT"
+    STAT = "STAT"
+
+
+class ServiceCategory(str, Enum):
+    """Category of billable service in master catalog."""
+    DRUG = "DRUG"
+    LAB_TEST = "LAB_TEST"
+    IMAGING = "IMAGING"
+    PROCEDURE = "PROCEDURE"
+    BLOOD_PRODUCT = "BLOOD_PRODUCT"
+    CONSULTATION = "CONSULTATION"
+    ROOM_CHARGE = "ROOM_CHARGE"
+    MISCELLANEOUS = "MISCELLANEOUS"
 
 
 # ─── Company (corporate billing accounts) ────────────────────────────────────
@@ -275,6 +316,7 @@ class Patient(SQLModel, table=True):
     allergies: list["PatientAllergy"] = Relationship(back_populates="patient")
     waitlist_entries: list["Waitlist"] = Relationship(back_populates="patient")
     company: Optional["Company"] = Relationship(back_populates="patients")
+    orders: list["Order"] = Relationship(back_populates="patient")
 
 
 class PatientAllergy(SQLModel, table=True):
@@ -345,6 +387,7 @@ class Visit(SQLModel, table=True):
     vitals: Optional["Vitals"] = Relationship(back_populates="visit")
     consultation: Optional["Consultation"] = Relationship(back_populates="visit")
     bill: Optional["Bill"] = Relationship(back_populates="visit")
+    orders: list["Order"] = Relationship(back_populates="visit")
 
 
 # ─── Vitals ───────────────────────────────────────────────────────────────────
@@ -670,4 +713,169 @@ class DoctorBlock(SQLModel, table=True):
     notes: Optional[str] = None
     created_by: int = Field(foreign_key="users.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = True
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# UNIFIED ORDER SYSTEM (Scalable architecture for all departments)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ─── Service Master (unified catalog of all billable items) ──────────────────
+
+class Service(SQLModel, table=True):
+    """
+    Master catalog of all billable services.
+    Links to specific tables (Drug, LabTest) for detailed info.
+    This is the SINGLE SOURCE for pricing and billing.
+    """
+    __tablename__ = "services"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(max_length=20, unique=True)      # SVC001, DRUG001, LAB001
+    name: str = Field(max_length=200)                  # "Metformin 500mg", "HbA1c"
+    category: ServiceCategory                          # DRUG, LAB_TEST, IMAGING, etc.
+    department_id: Optional[int] = Field(default=None, foreign_key="departments.id")
+
+    # Pricing
+    base_price: float = 0.0                            # Standard price
+    gst_percent: float = 0.0                           # 5% for drugs, 0% for healthcare
+
+    # Links to detailed tables (optional, for category-specific info)
+    drug_id: Optional[int] = Field(default=None, foreign_key="drugs.id")
+    lab_test_id: Optional[int] = Field(default=None, foreign_key="lab_tests.id")
+
+    # Metadata
+    description: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    order_items: list["OrderItem"] = Relationship(back_populates="service")
+
+
+# ─── Order (unified orders for all departments) ──────────────────────────────
+
+class Order(SQLModel, table=True):
+    """
+    Universal order table. Replaces separate Prescription/LabOrder tables.
+    Each department filters by order_type to see their queue.
+    """
+    __tablename__ = "orders"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_no: str = Field(max_length=20, unique=True, index=True)  # ORD202606110001
+
+    # Who/What
+    patient_id: int = Field(foreign_key="patients.id", index=True)
+    visit_id: Optional[int] = Field(default=None, foreign_key="visits.id", index=True)
+    consultation_id: Optional[int] = Field(default=None, foreign_key="consultations.id")
+    ordered_by: int = Field(foreign_key="users.id")    # Doctor/Nurse who created
+
+    # Type & Routing
+    order_type: OrderType                              # PHARMACY, LAB, RADIOLOGY, etc.
+    target_department_id: int = Field(foreign_key="departments.id")  # Which dept handles this
+
+    # Status & Priority
+    status: OrderStatus = OrderStatus.ORDERED
+    priority: OrderPriority = OrderPriority.ROUTINE
+
+    # Scheduling (for radiology/procedures)
+    scheduled_date: Optional[date] = None
+    scheduled_time: Optional[time] = None
+
+    # Notes
+    clinical_notes: Optional[str] = None               # "Fasting required", "Check BP after"
+    cancellation_reason: Optional[str] = None
+
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    accepted_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+
+    # Billing link
+    is_billed: bool = False                            # True when added to bill
+
+    # Relationships
+    patient: Optional["Patient"] = Relationship()
+    visit: Optional["Visit"] = Relationship()
+    items: list["OrderItem"] = Relationship(back_populates="order")
+
+
+# ─── OrderItem (line items within an order) ──────────────────────────────────
+
+class OrderItem(SQLModel, table=True):
+    """
+    Individual items within an order.
+    Each item links to a Service for pricing.
+    """
+    __tablename__ = "order_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    order_id: int = Field(foreign_key="orders.id", index=True)
+    service_id: int = Field(foreign_key="services.id")
+
+    # Denormalized for history (service details may change, but order record stays)
+    service_name: str = Field(max_length=200)
+    service_category: ServiceCategory
+
+    # Quantity & Instructions
+    quantity: int = 1
+    instructions: Optional[str] = None                 # "After food", "Left arm"
+
+    # For prescriptions (drugs)
+    dosage: Optional[str] = Field(default=None, max_length=50)      # "500mg"
+    frequency: Optional[str] = Field(default=None, max_length=50)   # "BD"
+    duration: Optional[str] = Field(default=None, max_length=50)    # "7 days"
+    route: Optional[str] = Field(default=None, max_length=30)       # "Oral"
+
+    # For lab/radiology results
+    result_value: Optional[str] = None
+    result_unit: Optional[str] = Field(default=None, max_length=20)
+    normal_range: Optional[str] = Field(default=None, max_length=100)
+    is_abnormal: bool = False
+    result_notes: Optional[str] = None
+    resulted_at: Optional[datetime] = None
+    resulted_by: Optional[int] = Field(default=None, foreign_key="users.id")
+
+    # Item-level status (for partial dispensing/completion)
+    item_status: OrderStatus = OrderStatus.ORDERED
+    quantity_fulfilled: int = 0                        # For partial dispensing
+
+    # Pricing (captured at order time)
+    unit_price: float = 0.0
+    gst_percent: float = 0.0
+    gst_amount: float = 0.0
+    total_price: float = 0.0
+
+    # Relationships
+    order: Optional[Order] = Relationship(back_populates="items")
+    service: Optional[Service] = Relationship(back_populates="order_items")
+
+
+# ─── Imaging Master (for radiology orders) ───────────────────────────────────
+
+class ImagingExam(SQLModel, table=True):
+    """
+    Master table for radiology examinations.
+    Similar to LabTest but for X-ray, CT, MRI, USG, etc.
+    """
+    __tablename__ = "imaging_exams"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(max_length=200)                  # "Chest X-ray PA view"
+    code: str = Field(max_length=20, unique=True)      # "XR-CHEST-PA"
+    modality: str = Field(max_length=20)               # XR, CT, MRI, USG, FLUORO
+    body_part: str = Field(max_length=50)              # Chest, Abdomen, Head, etc.
+    laterality: Optional[str] = Field(default=None, max_length=20)  # Left, Right, Bilateral
+
+    # Preparation
+    preparation_instructions: Optional[str] = None     # "Fasting 6 hours", "Drink 1L water"
+    contrast_required: bool = False
+
+    # Scheduling
+    duration_minutes: int = 15                         # Typical exam duration
+
+    # Pricing (also in Service table, but kept here for quick reference)
+    price: float = 0.0
+
     is_active: bool = True

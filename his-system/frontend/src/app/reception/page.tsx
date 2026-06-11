@@ -1,938 +1,1163 @@
 "use client";
+
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { Sidebar } from "@/components/his/sidebar";
 import { Topbar } from "@/components/his/topbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import api from "@/lib/api";
-import { calcAge, fmtDate, fmtCurrency } from "@/lib/utils";
-import { toast } from "sonner";
-import { format } from "date-fns";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Search, UserPlus, CalendarDays, Clock, CheckCircle2, XCircle,
-  AlertTriangle, Building2, Globe, Phone, Droplet, History,
-  ChevronRight, RefreshCw, Users, Ticket, ArrowRightLeft, Bell,
-  X, CalendarClock, ListChecks,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import api from "@/lib/api";
+import { cn, calcAge } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  Search, UserPlus, X, ChevronRight, ChevronLeft,
+  Users, CheckCircle2, Stethoscope,
+  AlertTriangle, Loader2, IndianRupee, Timer,
+  CalendarPlus, ListChecks, UserSearch, XCircle,
+  LogIn, FileText, Edit, AlertCircle,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Patient {
-  id: number; uhid: string; first_name: string; last_name: string;
-  date_of_birth: string; gender: string; blood_group?: string; phone: string;
-  company_id?: number; language_preference?: string; interpreter_required?: boolean;
-  ayushman_card_no?: string; is_vip?: boolean; allergies?: { allergen: string; severity: string }[];
+interface Doctor {
+  doctor_id: number;
+  doctor_name: string;
+  department_id: number;
+  department_name: string;
+  specialization: string;
+  qualification: string;
+  experience_years: number;
+  slots_total: number;
+  slots_booked: number;
+  slots_available: number;
+  is_on_leave: boolean;
+  leave_reason: string | null;
+  estimated_wait_minutes: number | null;
+  availability_status: "AVAILABLE" | "FEW_SLOTS" | "FULL" | "ON_LEAVE";
+  consultation_fee: number;
+  follow_up_fee: number;
 }
-interface Doctor { id: number; full_name: string; specialization: string; consultation_fee?: number; department_id: number; }
-interface Department { id: number; name: string; code: string; consultation_fee: number; follow_up_fee?: number; }
-interface Appointment {
-  id: number; appointment_no: string; patient_id: number; doctor_id: number; department_id: number;
-  appointment_date: string; appointment_time: string; appointment_type: string; status: string;
-  visit_type: string; token_number?: number; chief_complaint?: string; checked_in_at?: string;
-  delay_minutes?: number; patient_name?: string; patient_uhid?: string; doctor_name?: string; department_name?: string;
-}
-interface SlotInfo { date: string; slots: { start: string; end: string; max: number }[]; booked: number; available: number; max: number; is_full: boolean; has_schedule: boolean; }
-interface FeeEstimate { fee: number; visit_type: string; discount: number; last_visit_date?: string; days_since?: number; followup_fee: number; base_fee: number; }
-interface EarliestSlot { doctor_id: number; doctor_name: string; specialization: string; date: string; available: number; booked: number; max: number; }
 
-const STATUS_COLOR: Record<string, string> = {
-  SCHEDULED: "bg-slate-100 text-slate-700",
-  CHECKED_IN: "bg-blue-100 text-blue-700",
-  IN_QUEUE: "bg-amber-100 text-amber-700",
-  WITH_DOCTOR: "bg-violet-100 text-violet-700",
-  COMPLETED: "bg-green-100 text-green-700",
-  CANCELLED: "bg-red-100 text-red-700",
-  NO_SHOW: "bg-gray-100 text-gray-500",
+interface Patient {
+  id: number;
+  uhid: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  gender: string;
+  date_of_birth: string;
+  address_line1?: string;
+  city?: string;
+}
+
+interface Department {
+  id: number;
+  name: string;
+  code: string;
+}
+
+interface Appointment {
+  id: number;
+  appointment_no: string;
+  patient_id: number;
+  doctor_id: number;
+  department_id: number;
+  appointment_date: string;
+  appointment_time: string;
+  status: string;
+  token_number: number | null;
+  patient_name: string;
+  patient_uhid: string;
+  patient_phone: string;
+  doctor_name: string;
+  department_name: string;
+  chief_complaint: string | null;
+}
+
+interface DuplicateMatch {
+  id: number;
+  uhid: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  date_of_birth: string;
+  gender: string;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const SYMPTOM_KEYWORDS: Record<string, string[]> = {
+  "Cardiology": ["heart", "chest pain", "bp", "blood pressure", "palpitation", "breathless"],
+  "General Medicine": ["fever", "cold", "cough", "weakness", "fatigue", "body pain"],
+  "Orthopedics": ["bone", "joint", "fracture", "knee", "back pain", "spine", "shoulder"],
+  "Pediatrics": ["child", "baby", "infant", "kid"],
+  "Dermatology": ["skin", "rash", "allergy", "itching", "acne", "hair fall"],
+  "Ophthalmology": ["eye", "vision", "glasses", "cataract"],
+  "Gynecology": ["pregnancy", "periods", "menstrual", "pcod", "pcos"],
+  "Neurology": ["headache", "migraine", "nerve", "paralysis", "stroke", "seizure"],
+  "ENT": ["ear", "nose", "throat", "hearing", "sinus", "tonsil"],
+  "Gastroenterology": ["stomach", "acidity", "digestion", "liver", "jaundice"],
 };
 
-const APPT_TYPES = [
-  { value: "WALK_IN", label: "Walk-in", icon: "🚶" },
-  { value: "SCHEDULED", label: "Scheduled", icon: "📅" },
-  { value: "FOLLOW_UP", label: "Follow-up", icon: "🔁" },
-  { value: "TELECONSULT", label: "Teleconsult", icon: "📹" },
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Delhi", "Jammu and Kashmir", "Ladakh",
 ];
 
-const INDIAN_STATES = ["Gujarat", "Maharashtra", "Rajasthan", "Delhi", "Karnataka", "Tamil Nadu", "Uttar Pradesh", "West Bengal", "Telangana", "Kerala", "Madhya Pradesh", "Punjab", "Haryana", "Bihar", "Odisha"];
-const LANGUAGES = ["Hindi", "Gujarati", "Marathi", "Tamil", "Telugu", "Kannada", "Malayalam", "Bengali", "Punjabi", "English", "Other"];
+const BLOOD_GROUPS = ["A_POSITIVE", "A_NEGATIVE", "B_POSITIVE", "B_NEGATIVE", "AB_POSITIVE", "AB_NEGATIVE", "O_POSITIVE", "O_NEGATIVE"];
+const BLOOD_GROUP_LABELS: Record<string, string> = {
+  A_POSITIVE: "A+", A_NEGATIVE: "A-", B_POSITIVE: "B+", B_NEGATIVE: "B-",
+  AB_POSITIVE: "AB+", AB_NEGATIVE: "AB-", O_POSITIVE: "O+", O_NEGATIVE: "O-",
+};
+
+function matchDepartment(query: string): string | null {
+  const q = query.toLowerCase();
+  for (const [dept, keywords] of Object.entries(SYMPTOM_KEYWORDS)) {
+    if (keywords.some(k => q.includes(k))) return dept;
+  }
+  return null;
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { bg: string; text: string; label: string }> = {
+    AVAILABLE: { bg: "bg-green-100", text: "text-green-700", label: "Available" },
+    FEW_SLOTS: { bg: "bg-amber-100", text: "text-amber-700", label: "Few Slots" },
+    FULL: { bg: "bg-red-100", text: "text-red-600", label: "Full" },
+    ON_LEAVE: { bg: "bg-gray-100", text: "text-gray-500", label: "On Leave" },
+    SCHEDULED: { bg: "bg-slate-100", text: "text-slate-700", label: "Scheduled" },
+    CHECKED_IN: { bg: "bg-blue-100", text: "text-blue-700", label: "Checked In" },
+    IN_QUEUE: { bg: "bg-amber-100", text: "text-amber-700", label: "In Queue" },
+    WITH_DOCTOR: { bg: "bg-violet-100", text: "text-violet-700", label: "With Doctor" },
+    COMPLETED: { bg: "bg-green-100", text: "text-green-700", label: "Completed" },
+    CANCELLED: { bg: "bg-red-100", text: "text-red-600", label: "Cancelled" },
+  };
+  const c = config[status] || { bg: "bg-gray-100", text: "text-gray-600", label: status };
+  return <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", c.bg, c.text)}>{c.label}</span>;
+}
+
+function DoctorCard({ doctor, selected, onSelect }: { doctor: Doctor; selected: boolean; onSelect: () => void }) {
+  const canBook = doctor.availability_status !== "FULL" && doctor.availability_status !== "ON_LEAVE";
+  const slotPct = doctor.slots_total > 0 ? (doctor.slots_booked / doctor.slots_total) * 100 : 0;
+
+  return (
+    <div
+      onClick={canBook ? onSelect : undefined}
+      className={cn(
+        "bg-white rounded-xl border-2 p-4 transition-all",
+        selected ? "border-blue-500 ring-2 ring-blue-100" : "border-gray-100",
+        canBook ? "cursor-pointer hover:border-blue-300 hover:shadow-md" : "opacity-60 cursor-not-allowed"
+      )}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+            <Stethoscope className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-gray-900">{doctor.doctor_name}</p>
+            <p className="text-xs text-gray-500">{doctor.specialization}</p>
+          </div>
+        </div>
+        <StatusBadge status={doctor.availability_status} />
+      </div>
+      <div className="text-xs text-gray-500 mb-3">{doctor.qualification} · {doctor.experience_years} yrs</div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="bg-gray-50 rounded-lg p-2 text-center">
+          <div className="flex items-center justify-center gap-1 text-gray-400 mb-1">
+            <Users className="w-3 h-3" /><span className="text-[10px]">Slots</span>
+          </div>
+          <p className="text-sm font-bold text-gray-700">{doctor.slots_booked}/{doctor.slots_total}</p>
+          <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+            <div className={cn("h-full rounded-full", slotPct >= 90 ? "bg-red-500" : slotPct >= 70 ? "bg-amber-500" : "bg-green-500")} style={{ width: `${slotPct}%` }} />
+          </div>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-2 text-center">
+          <div className="flex items-center justify-center gap-1 text-gray-400 mb-1">
+            <Timer className="w-3 h-3" /><span className="text-[10px]">Wait</span>
+          </div>
+          <p className="text-sm font-bold text-gray-700">{doctor.estimated_wait_minutes != null ? `${doctor.estimated_wait_minutes}m` : "—"}</p>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-2 text-center">
+          <div className="flex items-center justify-center gap-1 text-gray-400 mb-1">
+            <IndianRupee className="w-3 h-3" /><span className="text-[10px]">Fee</span>
+          </div>
+          <p className="text-sm font-bold text-gray-700">₹{doctor.consultation_fee}</p>
+        </div>
+      </div>
+      {canBook && (
+        <Button size="sm" className={cn("w-full", selected ? "bg-blue-600" : "bg-gray-100 text-gray-700 hover:bg-gray-200")} onClick={(e) => { e.stopPropagation(); onSelect(); }}>
+          {selected ? "Selected" : "Select"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ─── Full Registration Form Component ─────────────────────────────────────────
+
+interface FullRegFormData {
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  date_of_birth: string;
+  gender: string;
+  blood_group: string;
+  phone: string;
+  alternate_phone: string;
+  email: string;
+  address_line1: string;
+  address_line2: string;
+  city: string;
+  district: string;
+  state: string;
+  pincode: string;
+  aadhaar_last4: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  emergency_contact_relation: string;
+  marital_status: string;
+  occupation: string;
+}
+
+const EMPTY_FORM: FullRegFormData = {
+  first_name: "", middle_name: "", last_name: "", date_of_birth: "", gender: "MALE",
+  blood_group: "", phone: "", alternate_phone: "", email: "",
+  address_line1: "", address_line2: "", city: "", district: "", state: "", pincode: "",
+  aadhaar_last4: "", emergency_contact_name: "", emergency_contact_phone: "", emergency_contact_relation: "",
+  marital_status: "", occupation: "",
+};
+
+function FullRegistrationForm({
+  onSuccess,
+  onCancel,
+}: {
+  onSuccess: (patient: Patient) => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState<FullRegFormData>(EMPTY_FORM);
+  const [step, setStep] = useState<1 | 2 | 3>(1); // 1=Basic, 2=Address, 3=Emergency
+  const [duplicates, setDuplicates] = useState<DuplicateMatch[]>([]);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+
+  const registerMut = useMutation({
+    mutationFn: (body: FullRegFormData) => api.post("/api/patients", {
+      ...body,
+      blood_group: body.blood_group || null,
+      aadhaar_last4: body.aadhaar_last4 || null,
+    }).then(r => r.data),
+    onSuccess: (data) => {
+      toast.success(`Patient registered: ${data.uhid}`);
+      onSuccess(data);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Registration failed"),
+  });
+
+  async function checkDuplicate() {
+    if (!form.phone || !form.date_of_birth) return;
+    setCheckingDuplicate(true);
+    try {
+      const res = await api.get("/api/patients/check-duplicate", {
+        params: { phone: form.phone, date_of_birth: form.date_of_birth, first_name: form.first_name },
+      });
+      if (res.data.is_duplicate) {
+        setDuplicates(res.data.matches);
+        setShowDuplicateWarning(true);
+      } else {
+        setDuplicates([]);
+        setShowDuplicateWarning(false);
+        setStep(2);
+      }
+    } catch {
+      setStep(2);
+    }
+    setCheckingDuplicate(false);
+  }
+
+  function handleNext() {
+    if (step === 1) {
+      if (!form.first_name || !form.phone || !form.date_of_birth) {
+        toast.error("Name, phone, and date of birth are required");
+        return;
+      }
+      checkDuplicate();
+    } else if (step === 2) {
+      if (!form.address_line1 || !form.city || !form.state || !form.pincode) {
+        toast.error("Address, city, state, and pincode are required");
+        return;
+      }
+      setStep(3);
+    }
+  }
+
+  function handleSubmit() {
+    registerMut.mutate(form);
+  }
+
+  function handleUseExisting(patient: DuplicateMatch) {
+    onSuccess({
+      id: patient.id,
+      uhid: patient.uhid,
+      first_name: patient.first_name,
+      last_name: patient.last_name,
+      phone: patient.phone,
+      gender: patient.gender,
+      date_of_birth: patient.date_of_birth,
+    });
+  }
+
+  const updateField = (field: keyof FullRegFormData, value: string) => setForm(f => ({ ...f, [field]: value }));
+
+  return (
+    <div className="bg-white rounded-xl border p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">New Patient Registration</h2>
+          <p className="text-sm text-gray-500">Step {step} of 3: {step === 1 ? "Basic Info" : step === 2 ? "Address" : "Emergency Contact"}</p>
+        </div>
+        <button onClick={onCancel} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+      </div>
+
+      {/* Progress */}
+      <div className="flex gap-2">
+        {[1, 2, 3].map(s => (
+          <div key={s} className={cn("h-1.5 flex-1 rounded-full", s <= step ? "bg-blue-600" : "bg-gray-200")} />
+        ))}
+      </div>
+
+      {/* Duplicate Warning */}
+      {showDuplicateWarning && duplicates.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-amber-800">Possible Duplicate Found</p>
+              <p className="text-sm text-amber-700 mt-1">A patient with the same phone and date of birth already exists.</p>
+              <div className="mt-3 space-y-2">
+                {duplicates.map(d => (
+                  <div key={d.id} className="flex items-center justify-between bg-white rounded-lg border border-amber-200 p-3">
+                    <div>
+                      <p className="font-medium">{d.first_name} {d.last_name}</p>
+                      <p className="text-xs text-gray-500">{d.uhid} · {d.phone} · {d.gender}/{calcAge(d.date_of_birth)}yrs</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => handleUseExisting(d)}>Use This</Button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => { setShowDuplicateWarning(false); setStep(2); }}>
+                  Create New Anyway
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 1: Basic Info */}
+      {step === 1 && !showDuplicateWarning && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label className="text-xs">First Name *</Label>
+              <Input value={form.first_name} onChange={e => updateField("first_name", e.target.value)} className="mt-1" placeholder="Ramesh" />
+            </div>
+            <div>
+              <Label className="text-xs">Middle Name</Label>
+              <Input value={form.middle_name} onChange={e => updateField("middle_name", e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Last Name *</Label>
+              <Input value={form.last_name} onChange={e => updateField("last_name", e.target.value)} className="mt-1" placeholder="Kumar" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label className="text-xs">Date of Birth *</Label>
+              <Input type="date" value={form.date_of_birth} onChange={e => updateField("date_of_birth", e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Gender *</Label>
+              <div className="flex gap-2 mt-1">
+                {["MALE", "FEMALE", "OTHER"].map(g => (
+                  <button key={g} onClick={() => updateField("gender", g)}
+                    className={cn("px-3 py-2 rounded-lg text-xs font-medium border flex-1",
+                      form.gender === g ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200")}>
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Blood Group</Label>
+              <Select value={form.blood_group} onValueChange={v => updateField("blood_group", v || "")}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {BLOOD_GROUPS.map(bg => (
+                    <SelectItem key={bg} value={bg}>{BLOOD_GROUP_LABELS[bg]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label className="text-xs">Phone *</Label>
+              <Input value={form.phone} onChange={e => updateField("phone", e.target.value)} className="mt-1" maxLength={10} placeholder="9876543210" />
+            </div>
+            <div>
+              <Label className="text-xs">Alternate Phone</Label>
+              <Input value={form.alternate_phone} onChange={e => updateField("alternate_phone", e.target.value)} className="mt-1" maxLength={10} />
+            </div>
+            <div>
+              <Label className="text-xs">Email</Label>
+              <Input type="email" value={form.email} onChange={e => updateField("email", e.target.value)} className="mt-1" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs">Aadhaar (Last 4 digits only)</Label>
+              <Input value={form.aadhaar_last4} onChange={e => updateField("aadhaar_last4", e.target.value)} className="mt-1" maxLength={4} placeholder="1234" />
+              <p className="text-[10px] text-gray-400 mt-1">Full Aadhaar not stored per UIDAI norms</p>
+            </div>
+            <div>
+              <Label className="text-xs">Marital Status</Label>
+              <Select value={form.marital_status} onValueChange={v => updateField("marital_status", v || "")}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="SINGLE">Single</SelectItem>
+                  <SelectItem value="MARRIED">Married</SelectItem>
+                  <SelectItem value="DIVORCED">Divorced</SelectItem>
+                  <SelectItem value="WIDOWED">Widowed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Address */}
+      {step === 2 && (
+        <div className="space-y-4">
+          <div>
+            <Label className="text-xs">Address Line 1 *</Label>
+            <Input value={form.address_line1} onChange={e => updateField("address_line1", e.target.value)} className="mt-1" placeholder="House No., Street Name" />
+          </div>
+          <div>
+            <Label className="text-xs">Address Line 2</Label>
+            <Input value={form.address_line2} onChange={e => updateField("address_line2", e.target.value)} className="mt-1" placeholder="Landmark, Area" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs">City *</Label>
+              <Input value={form.city} onChange={e => updateField("city", e.target.value)} className="mt-1" placeholder="Mumbai" />
+            </div>
+            <div>
+              <Label className="text-xs">District *</Label>
+              <Input value={form.district} onChange={e => updateField("district", e.target.value)} className="mt-1" placeholder="Mumbai Suburban" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs">State *</Label>
+              <Select value={form.state} onValueChange={v => updateField("state", v || "")}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select State" /></SelectTrigger>
+                <SelectContent>
+                  {INDIAN_STATES.map(s => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">PIN Code *</Label>
+              <Input value={form.pincode} onChange={e => updateField("pincode", e.target.value)} className="mt-1" maxLength={6} placeholder="400001" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Occupation</Label>
+            <Input value={form.occupation} onChange={e => updateField("occupation", e.target.value)} className="mt-1" placeholder="Business, Service, etc." />
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Emergency Contact */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+            <p className="text-sm text-amber-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Emergency contact is important for critical situations
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs">Contact Name</Label>
+              <Input value={form.emergency_contact_name} onChange={e => updateField("emergency_contact_name", e.target.value)} className="mt-1" placeholder="Suresh Kumar" />
+            </div>
+            <div>
+              <Label className="text-xs">Contact Phone</Label>
+              <Input value={form.emergency_contact_phone} onChange={e => updateField("emergency_contact_phone", e.target.value)} className="mt-1" maxLength={10} />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Relationship</Label>
+            <Select value={form.emergency_contact_relation} onValueChange={v => updateField("emergency_contact_relation", v || "")}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Select Relationship" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SPOUSE">Spouse</SelectItem>
+                <SelectItem value="PARENT">Parent</SelectItem>
+                <SelectItem value="CHILD">Child</SelectItem>
+                <SelectItem value="SIBLING">Sibling</SelectItem>
+                <SelectItem value="FRIEND">Friend</SelectItem>
+                <SelectItem value="OTHER">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Summary */}
+          <div className="bg-gray-50 rounded-lg p-4 mt-4">
+            <p className="text-sm font-medium text-gray-700 mb-2">Registration Summary</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <p className="text-gray-500">Name:</p>
+              <p className="font-medium">{form.first_name} {form.middle_name} {form.last_name}</p>
+              <p className="text-gray-500">DOB / Gender:</p>
+              <p className="font-medium">{form.date_of_birth} / {form.gender}</p>
+              <p className="text-gray-500">Phone:</p>
+              <p className="font-medium">{form.phone}</p>
+              <p className="text-gray-500">Address:</p>
+              <p className="font-medium">{form.city}, {form.state} - {form.pincode}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex justify-between pt-4 border-t">
+        <Button variant="outline" onClick={step === 1 ? onCancel : () => setStep(s => (s - 1) as 1 | 2 | 3)}>
+          {step === 1 ? "Cancel" : "Back"}
+        </Button>
+        {step < 3 ? (
+          <Button onClick={handleNext} disabled={checkingDuplicate}>
+            {checkingDuplicate ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Checking...</> : "Next"}
+          </Button>
+        ) : (
+          <Button onClick={handleSubmit} disabled={registerMut.isPending}>
+            {registerMut.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Registering...</> : <><CheckCircle2 className="w-4 h-4 mr-2" />Register Patient</>}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ReceptionPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"book" | "schedule" | "waitlist">("book");
-  const [searchQ, setSearchQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"new" | "appointments" | "patients">("new");
+
+  // ─── TAB 1: New Appointment State ───────────────────────────────────────────
+  const [step, setStep] = useState<1 | 2>(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDeptId, setSelectedDeptId] = useState<number | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [debouncedPatientSearch, setDebouncedPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [showNewPatient, setShowNewPatient] = useState(false);
-  const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
-  const [delayTarget, setDelayTarget] = useState<{ appt_id: number; doctor_name: string } | null>(null);
-
-  // Booking form state
-  const [apptType, setApptType] = useState("SCHEDULED");
-  const [deptId, setDeptId] = useState("");
-  const [doctorId, setDoctorId] = useState("");
-  const [apptDate, setApptDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [apptTime, setApptTime] = useState("09:00");
+  const [showQuickRegister, setShowQuickRegister] = useState(false);
+  const [quickRegForm, setQuickRegForm] = useState({ first_name: "", last_name: "", phone: "", gender: "MALE", date_of_birth: "" });
   const [complaint, setComplaint] = useState("");
-  const [showEarliest, setShowEarliest] = useState(false);
-  const [delayMinutes, setDelayMinutes] = useState("30");
 
-  // New patient form
-  const [newPat, setNewPat] = useState({
-    first_name: "", last_name: "", date_of_birth: "", gender: "MALE", phone: "",
-    address_line1: "", city: "", district: "", state: "Gujarat", pincode: "",
-    blood_group: "", language_preference: "Hindi", interpreter_required: false,
-  });
+  // ─── TAB 2: Appointments State ──────────────────────────────────────────────
+  const [apptFilter, setApptFilter] = useState<string>("all");
 
-  // Reschedule form
-  const [reschedDate, setReschedDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [reschedTime, setReschedTime] = useState("09:00");
+  // ─── TAB 3: Patients State ──────────────────────────────────────────────────
+  const [patientSearchTab, setPatientSearchTab] = useState("");
+  const [debouncedPatientSearchTab, setDebouncedPatientSearchTab] = useState("");
+  const [showFullRegistration, setShowFullRegistration] = useState(false);
 
-  // Debounce search
+  // Debounce
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedQ(searchQ), 350);
+    debounceRef.current = setTimeout(() => setDebouncedPatientSearch(patientSearch), 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [searchQ]);
+  }, [patientSearch]);
 
-  // Reset doctor when dept changes
-  useEffect(() => { setDoctorId(""); setShowEarliest(false); }, [deptId]);
+  const debounceRef2 = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef2.current) clearTimeout(debounceRef2.current);
+    debounceRef2.current = setTimeout(() => setDebouncedPatientSearchTab(patientSearchTab), 300);
+    return () => { if (debounceRef2.current) clearTimeout(debounceRef2.current); };
+  }, [patientSearchTab]);
 
-  // ─── Queries ──────────────────────────────────────────────────────────────
-
+  // Auto-detect department from symptom
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ["departments"],
     queryFn: () => api.get("/api/masters/departments").then(r => r.data),
   });
 
-  const { data: doctors = [] } = useQuery<Doctor[]>({
-    queryKey: ["doctors", deptId],
-    queryFn: () => api.get(`/api/masters/doctors${deptId ? `?department_id=${deptId}` : ""}`).then(r => r.data),
-    enabled: !!deptId,
+  useEffect(() => {
+    if (searchQuery.length >= 3) {
+      const matched = matchDepartment(searchQuery);
+      if (matched) {
+        const dept = departments.find((d: Department) => d.name === matched);
+        if (dept) setSelectedDeptId(dept.id);
+      }
+    }
+  }, [searchQuery, departments]);
+
+  // ─── Queries ────────────────────────────────────────────────────────────────
+
+  const { data: doctors = [], isLoading: loadingDoctors } = useQuery<Doctor[]>({
+    queryKey: ["doctors-availability", selectedDeptId, today],
+    queryFn: () => {
+      let url = `/api/appointments/doctors-availability?date=${today}`;
+      if (selectedDeptId) url += `&department_id=${selectedDeptId}`;
+      return api.get(url).then(r => r.data);
+    },
   });
 
-  const { data: searchResults, isFetching: searching } = useQuery<{ data: Patient[] }>({
-    queryKey: ["patient-search", debouncedQ],
-    queryFn: () => api.get(`/api/patients?q=${debouncedQ}&limit=10`).then(r => r.data),
-    enabled: debouncedQ.length >= 2,
+  const { data: patients = [] } = useQuery<Patient[]>({
+    queryKey: ["patient-search", debouncedPatientSearch],
+    queryFn: () => api.get(`/api/patients?q=${debouncedPatientSearch}&limit=10`).then(r => r.data),
+    enabled: debouncedPatientSearch.length >= 2,
+    select: (data: any) => data.data || data,
   });
 
-  const { data: slotInfo } = useQuery<SlotInfo>({
-    queryKey: ["slots", doctorId, apptDate],
-    queryFn: () => api.get(`/api/appointments/available-slots?doctor_id=${doctorId}&date=${apptDate}`).then(r => r.data),
-    enabled: !!doctorId && !!apptDate && apptType !== "WALK_IN",
+  const { data: patientsTab = [], isFetching: searchingPatientsTab } = useQuery<Patient[]>({
+    queryKey: ["patient-search-tab", debouncedPatientSearchTab],
+    queryFn: () => api.get(`/api/patients?q=${debouncedPatientSearchTab}&limit=20`).then(r => r.data),
+    enabled: debouncedPatientSearchTab.length >= 2,
+    select: (data: any) => data.data || data,
   });
 
-  const { data: feeEstimate } = useQuery<FeeEstimate>({
-    queryKey: ["fee", selectedPatient?.id, doctorId],
-    queryFn: () => api.get(`/api/appointments/fee-estimate?patient_id=${selectedPatient!.id}&doctor_id=${doctorId}`).then(r => r.data),
-    enabled: !!selectedPatient && !!doctorId,
+  // Fetch recent patients when no search query (default view)
+  const { data: recentPatients = [], isLoading: loadingRecentPatients } = useQuery<Patient[]>({
+    queryKey: ["recent-patients"],
+    queryFn: () => api.get("/api/patients?limit=30").then(r => r.data),
+    enabled: debouncedPatientSearchTab.length < 2,
+    select: (data: any) => data.data || data,
   });
 
-  const { data: earliestSlots = [], isFetching: searchingEarliest } = useQuery<EarliestSlot[]>({
-    queryKey: ["earliest", deptId],
-    queryFn: () => api.get(`/api/appointments/earliest-available?department_id=${deptId}&days_ahead=14`).then(r => r.data),
-    enabled: showEarliest && !!deptId,
+  const { data: feeEstimate } = useQuery({
+    queryKey: ["fee-estimate", selectedPatient?.id, selectedDoctor?.doctor_id],
+    queryFn: () => api.get(`/api/appointments/fee-estimate?patient_id=${selectedPatient!.id}&doctor_id=${selectedDoctor!.doctor_id}`).then(r => r.data),
+    enabled: !!(selectedPatient && selectedDoctor),
   });
 
-  const todayStr = format(new Date(), "yyyy-MM-dd");
-  const { data: todayAppts = [], refetch: refetchToday } = useQuery<Appointment[]>({
-    queryKey: ["appts-today"],
-    queryFn: () => api.get(`/api/appointments?appointment_date=${todayStr}`).then(r => r.data),
-    refetchInterval: 30000,
+  const { data: appointments = [], isLoading: loadingAppts } = useQuery<Appointment[]>({
+    queryKey: ["appointments-today", today],
+    queryFn: () => api.get(`/api/appointments?appointment_date=${today}`).then(r => r.data),
+    refetchInterval: 15000,
   });
 
-  const { data: waitlistEntries = [] } = useQuery<any[]>({
-    queryKey: ["waitlist"],
-    queryFn: () => api.get("/api/appointments/waitlist").then(r => r.data),
-    enabled: tab === "waitlist",
+  // ─── Mutations ──────────────────────────────────────────────────────────────
+
+  const quickRegisterMut = useMutation({
+    mutationFn: (body: typeof quickRegForm) => api.post("/api/patients/quick-register", body).then(r => r.data),
+    onSuccess: (data) => {
+      setSelectedPatient(data);
+      setShowQuickRegister(false);
+      setQuickRegForm({ first_name: "", last_name: "", phone: "", gender: "MALE", date_of_birth: "" });
+      toast.success(`Registered: ${data.uhid}`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Registration failed"),
   });
-
-  const selectedDoctor = doctors.find(d => d.id === Number(doctorId));
-  const selectedDept = departments.find(d => d.id === Number(deptId));
-
-  // ─── Mutations ────────────────────────────────────────────────────────────
 
   const bookMut = useMutation({
-    mutationFn: (body: object) => api.post("/api/appointments", body).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(`Booked — Token #${data.token_number}`);
-      setComplaint(""); setDoctorId(""); setDeptId("");
-      qc.invalidateQueries({ queryKey: ["appts-today"] });
+    mutationFn: (body: any) => api.post("/api/appointments", body).then(r => r.data),
+    onSuccess: async (appt) => {
+      try { await api.post(`/api/appointments/${appt.id}/checkin`); } catch {}
+      qc.invalidateQueries({ queryKey: ["appointments-today"] });
+      qc.invalidateQueries({ queryKey: ["doctors-availability"] });
+      toast.success(`Booked! Token #${appt.token_number}`);
+      setSelectedDoctor(null);
+      setSelectedPatient(null);
+      setComplaint("");
+      setStep(1);
     },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Booking failed"),
   });
 
   const checkinMut = useMutation({
     mutationFn: (id: number) => api.post(`/api/appointments/${id}/checkin`).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(`Checked in — Visit ${data.visit_no}`);
-      qc.invalidateQueries({ queryKey: ["appts-today"] });
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["appointments-today"] }); toast.success("Checked in"); },
     onError: (err: any) => toast.error(err.response?.data?.detail || "Check-in failed"),
   });
 
-  const noShowMut = useMutation({
-    mutationFn: (id: number) => api.post(`/api/appointments/${id}/no-show`).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(data.waitlist_notified ? "No-show marked. Waitlist patient notified." : "Marked as no-show");
-      qc.invalidateQueries({ queryKey: ["appts-today"] });
-    },
-  });
-
   const cancelMut = useMutation({
-    mutationFn: (id: number) => api.patch(`/api/appointments/${id}/status`, { status: "CANCELLED", cancelled_reason: "Cancelled at reception" }).then(r => r.data),
-    onSuccess: () => { toast.success("Appointment cancelled"); qc.invalidateQueries({ queryKey: ["appts-today"] }); },
-  });
-
-  const rescheduleMut = useMutation({
-    mutationFn: ({ id, ...body }: { id: number; new_date: string; new_time: string }) =>
-      api.post(`/api/appointments/${id}/reschedule`, body).then(r => r.data),
+    mutationFn: (id: number) => api.post(`/api/appointments/${id}/cancel`, { reason: "Cancelled at reception" }).then(r => r.data),
     onSuccess: () => {
-      toast.success("Rescheduled");
-      setRescheduleTarget(null);
-      qc.invalidateQueries({ queryKey: ["appts-today"] });
+      qc.invalidateQueries({ queryKey: ["appointments-today"] });
+      qc.invalidateQueries({ queryKey: ["doctors-availability"] });
+      toast.success("Cancelled");
     },
-    onError: (err: any) => toast.error(err.response?.data?.detail || "Reschedule failed"),
+    onError: (err: any) => toast.error(err.response?.data?.detail || "Cancel failed"),
   });
 
-  const delayMut = useMutation({
-    mutationFn: ({ id, delay_minutes }: { id: number; delay_minutes: number }) =>
-      api.post(`/api/appointments/${id}/notify-delay`, { delay_minutes }).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(data.message);
-      setDelayTarget(null);
-      qc.invalidateQueries({ queryKey: ["appts-today"] });
-    },
-  });
+  // ─── Handlers ───────────────────────────────────────────────────────────────
 
-  const waitlistMut = useMutation({
-    mutationFn: (body: object) => api.post("/api/appointments/waitlist", body).then(r => r.data),
-    onSuccess: () => { toast.success("Added to waitlist"); qc.invalidateQueries({ queryKey: ["waitlist"] }); },
-  });
-
-  const registerMut = useMutation({
-    mutationFn: (body: object) => api.post("/api/patients", body).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(`Registered — ${data.uhid}`);
-      setSelectedPatient(data);
-      setShowNewPatient(false);
-      setNewPat({ first_name: "", last_name: "", date_of_birth: "", gender: "MALE", phone: "", address_line1: "", city: "", district: "", state: "Gujarat", pincode: "", blood_group: "", language_preference: "Hindi", interpreter_required: false });
-      qc.invalidateQueries({ queryKey: ["patient-search"] });
-    },
-    onError: (err: any) => toast.error(err.response?.data?.detail || "Registration failed"),
-  });
-
-  // ─── Handlers ─────────────────────────────────────────────────────────────
+  function handleDoctorSelect(doc: Doctor) {
+    setSelectedDoctor(doc);
+    setStep(2);
+  }
 
   function handleBook() {
-    if (!selectedPatient) return toast.error("Select a patient first");
-    if (!deptId) return toast.error("Select department");
-    if (!doctorId) return toast.error("Select doctor");
-    if (apptType !== "WALK_IN" && !apptDate) return toast.error("Select date");
-
-    const effectiveDate = apptType === "WALK_IN" ? todayStr : apptDate;
-    const effectiveTime = apptType === "WALK_IN" ? format(new Date(), "HH:mm") : apptTime;
-    const effectiveVisitType = (apptType === "FOLLOW_UP" || feeEstimate?.visit_type === "FOLLOW_UP") ? "FOLLOW_UP" : "NEW";
-
+    if (!selectedDoctor || !selectedPatient) return;
     bookMut.mutate({
       patient_id: selectedPatient.id,
-      doctor_id: Number(doctorId),
-      department_id: Number(deptId),
-      appointment_date: effectiveDate,
-      appointment_time: `${effectiveTime}:00`,
-      appointment_type: apptType,
-      visit_type: effectiveVisitType,
-      chief_complaint: complaint || undefined,
-      priority: selectedPatient.is_vip ? 1 : 0,
+      doctor_id: selectedDoctor.doctor_id,
+      department_id: selectedDoctor.department_id,
+      appointment_date: today,
+      appointment_time: format(new Date(), "HH:mm:ss"),
+      appointment_type: feeEstimate?.visit_type === "FOLLOW_UP" ? "FOLLOW_UP" : "WALK_IN",
+      visit_type: feeEstimate?.visit_type || "NEW",
+      chief_complaint: complaint || null,
     });
   }
 
-  function handleWaitlist() {
-    if (!selectedPatient || !deptId || !doctorId) return toast.error("Select patient, department, and doctor");
-    waitlistMut.mutate({
-      patient_id: selectedPatient.id,
-      doctor_id: Number(doctorId),
-      department_id: Number(deptId),
-      preferred_date: apptDate,
-    });
-  }
-
-  function handleRegister() {
-    if (!newPat.first_name || !newPat.last_name || !newPat.date_of_birth || !newPat.phone || !newPat.address_line1 || !newPat.city || !newPat.pincode) {
-      return toast.error("Fill all required fields");
+  function handleQuickRegister() {
+    if (!quickRegForm.first_name || !quickRegForm.phone || !quickRegForm.date_of_birth) {
+      toast.error("Name, phone and DOB required");
+      return;
     }
-    const payload: any = { ...newPat };
-    if (!payload.blood_group) delete payload.blood_group;
-    registerMut.mutate(payload);
+    quickRegisterMut.mutate(quickRegForm);
   }
 
-  // ─── Stats ────────────────────────────────────────────────────────────────
+  // Filter
+  const filteredDoctors = doctors.filter((doc: Doctor) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return doc.doctor_name.toLowerCase().includes(q) || doc.department_name.toLowerCase().includes(q);
+  });
+
+  const filteredAppointments = appointments.filter((a: Appointment) => apptFilter === "all" || a.status === apptFilter);
 
   const stats = {
-    total: todayAppts.length,
-    checkedIn: todayAppts.filter(a => a.status === "CHECKED_IN").length,
-    inQueue: todayAppts.filter(a => ["IN_QUEUE", "WITH_DOCTOR"].includes(a.status)).length,
-    completed: todayAppts.filter(a => a.status === "COMPLETED").length,
-    noShow: todayAppts.filter(a => a.status === "NO_SHOW").length,
+    total: appointments.length,
+    scheduled: appointments.filter((a: Appointment) => a.status === "SCHEDULED").length,
+    checkedIn: appointments.filter((a: Appointment) => a.status === "CHECKED_IN" || a.status === "IN_QUEUE").length,
+    withDoctor: appointments.filter((a: Appointment) => a.status === "WITH_DOCTOR").length,
+    completed: appointments.filter((a: Appointment) => a.status === "COMPLETED").length,
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Topbar title="Reception Desk" />
-        <div className="flex-1 flex overflow-hidden">
 
-          {/* ── LEFT: Patient Search Panel ─────────────────────────────────── */}
-          <div className="w-72 bg-white border-r flex flex-col shrink-0">
-            <div className="px-4 py-3 border-b bg-blue-950 text-white">
-              <p className="font-semibold text-sm">Patient Search</p>
-              <p className="text-blue-300 text-xs">Search or register new</p>
-            </div>
-
-            {/* Search bar */}
-            <div className="px-3 py-2 border-b">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" />
-                <Input
-                  placeholder="Name, phone, UHID..."
-                  value={searchQ}
-                  onChange={e => setSearchQ(e.target.value)}
-                  className="pl-8 h-8 text-sm"
-                />
-                {searchQ && (
-                  <button onClick={() => { setSearchQ(""); setDebouncedQ(""); }} className="absolute right-2 top-2">
-                    <X className="w-3.5 h-3.5 text-gray-400" />
-                  </button>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-2 text-xs h-7"
-                onClick={() => { setShowNewPatient(!showNewPatient); setSearchQ(""); setSelectedPatient(null); }}
-              >
-                <UserPlus className="w-3 h-3 mr-1" />
-                {showNewPatient ? "Cancel Registration" : "Register New Patient"}
-              </Button>
-            </div>
-
-            {/* New Patient Form */}
-            {showNewPatient && (
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 bg-blue-50/30">
-                <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">New Patient</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">First Name *</Label>
-                    <Input className="h-7 text-xs" value={newPat.first_name} onChange={e => setNewPat(p => ({ ...p, first_name: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Last Name *</Label>
-                    <Input className="h-7 text-xs" value={newPat.last_name} onChange={e => setNewPat(p => ({ ...p, last_name: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Date of Birth *</Label>
-                    <Input type="date" className="h-7 text-xs" value={newPat.date_of_birth} onChange={e => setNewPat(p => ({ ...p, date_of_birth: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Gender *</Label>
-                    <Select value={newPat.gender} onValueChange={v => setNewPat(p => ({ ...p, gender: v ?? "MALE" }))}>
-                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MALE">Male</SelectItem>
-                        <SelectItem value="FEMALE">Female</SelectItem>
-                        <SelectItem value="OTHER">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs">Phone *</Label>
-                  <Input className="h-7 text-xs" placeholder="10-digit mobile" value={newPat.phone} onChange={e => setNewPat(p => ({ ...p, phone: e.target.value }))} />
-                </div>
-                <div>
-                  <Label className="text-xs">Address *</Label>
-                  <Input className="h-7 text-xs" value={newPat.address_line1} onChange={e => setNewPat(p => ({ ...p, address_line1: e.target.value }))} />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">City *</Label>
-                    <Input className="h-7 text-xs" value={newPat.city} onChange={e => setNewPat(p => ({ ...p, city: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">District</Label>
-                    <Input className="h-7 text-xs" value={newPat.district} onChange={e => setNewPat(p => ({ ...p, district: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">State *</Label>
-                    <Select value={newPat.state} onValueChange={v => setNewPat(p => ({ ...p, state: v ?? "Gujarat" }))}>
-                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Pincode *</Label>
-                    <Input className="h-7 text-xs" maxLength={6} value={newPat.pincode} onChange={e => setNewPat(p => ({ ...p, pincode: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Blood Group</Label>
-                    <Select value={newPat.blood_group} onValueChange={v => setNewPat(p => ({ ...p, blood_group: v ?? "" }))}>
-                      <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Optional" /></SelectTrigger>
-                      <SelectContent>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Language</Label>
-                    <Select value={newPat.language_preference} onValueChange={v => setNewPat(p => ({ ...p, language_preference: v ?? "Hindi" }))}>
-                      <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>{LANGUAGES.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
-                  <input type="checkbox" checked={newPat.interpreter_required} onChange={e => setNewPat(p => ({ ...p, interpreter_required: e.target.checked }))} />
-                  Interpreter required
-                </label>
-                <Button size="sm" className="w-full h-7 text-xs" onClick={handleRegister} disabled={registerMut.isPending}>
-                  {registerMut.isPending ? "Registering..." : "Register Patient"}
-                </Button>
-              </div>
-            )}
-
-            {/* Search Results */}
-            {!showNewPatient && debouncedQ.length >= 2 && (
-              <div className="flex-1 overflow-y-auto">
-                {searching && <p className="text-xs text-gray-400 px-3 py-2">Searching...</p>}
-                {(searchResults?.data || []).length === 0 && !searching && (
-                  <p className="text-xs text-gray-400 px-3 py-4 text-center">No patients found</p>
-                )}
-                {(searchResults?.data || []).map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => { setSelectedPatient(p); setSearchQ(""); setDebouncedQ(""); }}
-                    className={cn(
-                      "w-full text-left px-3 py-2 border-b hover:bg-blue-50 transition-colors",
-                      selectedPatient?.id === p.id && "bg-blue-50 border-l-2 border-l-blue-600"
-                    )}
-                  >
-                    <p className="text-sm font-medium text-gray-900">{p.first_name} {p.last_name}</p>
-                    <p className="text-xs text-gray-500">{p.uhid} · {p.gender[0]}/{calcAge(p.date_of_birth)}y · {p.phone}</p>
-                    {p.company_id && <Badge className="text-[10px] px-1 py-0 mt-0.5 bg-amber-100 text-amber-800">Corporate</Badge>}
-                    {p.interpreter_required && <Badge className="text-[10px] px-1 py-0 mt-0.5 ml-1 bg-purple-100 text-purple-700">Interpreter</Badge>}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Selected Patient Card */}
-            {selectedPatient && !showNewPatient && debouncedQ.length < 2 && (
-              <div className="flex-1 overflow-y-auto">
-                <div className="p-3 bg-blue-50 border-b">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-sm text-blue-900">{selectedPatient.first_name} {selectedPatient.last_name}</p>
-                      <p className="text-xs text-blue-700 font-mono">{selectedPatient.uhid}</p>
-                    </div>
-                    <button onClick={() => setSelectedPatient(null)} className="text-blue-400 hover:text-blue-600">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-gray-600">
-                    <span>{selectedPatient.gender === "MALE" ? "M" : selectedPatient.gender === "FEMALE" ? "F" : "O"} / {calcAge(selectedPatient.date_of_birth)} yrs</span>
-                    {selectedPatient.blood_group && (
-                      <span className="flex items-center gap-1"><Droplet className="w-3 h-3 text-red-400" />{selectedPatient.blood_group}</span>
-                    )}
-                    <span className="flex items-center gap-1 col-span-2"><Phone className="w-3 h-3" />{selectedPatient.phone}</span>
-                    {selectedPatient.language_preference && selectedPatient.language_preference !== "Hindi" && (
-                      <span className="flex items-center gap-1 col-span-2">
-                        <Globe className="w-3 h-3 text-purple-500" />
-                        {selectedPatient.language_preference}
-                        {selectedPatient.interpreter_required && <span className="text-purple-600 font-semibold ml-1">(Interpreter needed)</span>}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {selectedPatient.is_vip && <Badge className="text-[10px] px-1.5 py-0 bg-yellow-100 text-yellow-800">VIP</Badge>}
-                    {selectedPatient.company_id && <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800"><Building2 className="w-2.5 h-2.5 mr-0.5 inline" />Corporate</Badge>}
-                    {selectedPatient.ayushman_card_no && <Badge className="text-[10px] px-1.5 py-0 bg-green-100 text-green-800">Ayushman</Badge>}
-                    {selectedPatient.interpreter_required && <Badge className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-700">Interpreter</Badge>}
-                  </div>
-                </div>
-
-                {/* Fee estimate preview (when doctor selected) */}
-                {feeEstimate && (
-                  <div className="p-3 border-b bg-white">
-                    <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Fee Estimate</p>
-                    <p className="text-lg font-bold text-blue-900">{fmtCurrency(feeEstimate.fee)}</p>
-                    {feeEstimate.visit_type === "FOLLOW_UP" && (
-                      <div className="text-xs text-green-700 mt-0.5">
-                        Follow-up rate (last visit: {feeEstimate.days_since}d ago)
-                        {feeEstimate.discount > 0 && <span className="ml-1 text-gray-400 line-through">{fmtCurrency(feeEstimate.base_fee)}</span>}
-                      </div>
-                    )}
-                    {selectedPatient.company_id && (
-                      <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
-                        <Building2 className="w-3 h-3" />Corporate billing — patient payable: ₹0
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className="p-3 text-xs text-gray-500 space-y-1">
-                  <p className="font-semibold text-gray-700 uppercase text-[10px] tracking-wide">Patient selected — use Booking panel →</p>
-                  <p>Select department and doctor to book appointment.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Empty state */}
-            {!selectedPatient && !showNewPatient && debouncedQ.length < 2 && (
-              <div className="flex-1 flex items-center justify-center text-center px-4">
-                <div className="text-gray-400">
-                  <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-xs">Search for a patient<br />or register a new one</p>
-                </div>
-              </div>
-            )}
+        {/* Tab Bar */}
+        <div className="bg-white border-b px-6 py-2">
+          <div className="flex items-center gap-1">
+            <button onClick={() => setActiveTab("new")} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all", activeTab === "new" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100")}>
+              <CalendarPlus className="w-4 h-4" />New Appointment
+            </button>
+            <button onClick={() => setActiveTab("appointments")} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all", activeTab === "appointments" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100")}>
+              <ListChecks className="w-4 h-4" />Appointments<span className="ml-1 px-1.5 py-0.5 bg-gray-200 text-gray-600 text-xs rounded-full">{stats.total}</span>
+            </button>
+            <button onClick={() => setActiveTab("patients")} className={cn("flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all", activeTab === "patients" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100")}>
+              <UserSearch className="w-4 h-4" />Patients
+            </button>
           </div>
+        </div>
 
-          {/* ── RIGHT: Main Panel ──────────────────────────────────────────── */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
 
-            {/* Stats bar */}
-            <div className="grid grid-cols-5 gap-px bg-gray-200 border-b shrink-0">
-              {[
-                { label: "Booked Today", value: stats.total, color: "text-blue-700" },
-                { label: "Checked In", value: stats.checkedIn, color: "text-blue-600" },
-                { label: "In Queue / Doctor", value: stats.inQueue, color: "text-amber-600" },
-                { label: "Completed", value: stats.completed, color: "text-green-600" },
-                { label: "No-shows", value: stats.noShow, color: "text-gray-500" },
-              ].map(s => (
-                <div key={s.label} className="bg-white px-4 py-2">
-                  <p className={cn("text-2xl font-bold", s.color)}>{s.value}</p>
-                  <p className="text-xs text-gray-500">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Tab bar */}
-            <div className="flex border-b bg-white shrink-0">
-              {[
-                { key: "book", label: "Book Appointment", icon: CalendarDays },
-                { key: "schedule", label: "Today's Schedule", icon: ListChecks },
-                { key: "waitlist", label: "Waitlist", icon: CalendarClock },
-              ].map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key as any)}
-                  className={cn(
-                    "flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors",
-                    tab === t.key
-                      ? "border-blue-600 text-blue-700"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
-                  )}
-                >
-                  <t.icon className="w-4 h-4" />
-                  {t.label}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {/* TAB 1: NEW APPOINTMENT */}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {activeTab === "new" && (
+            <div className="max-w-5xl mx-auto space-y-4">
+              {/* Step indicator */}
+              <div className="flex items-center gap-3 mb-4">
+                <button onClick={() => setStep(1)} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium", step === 1 ? "bg-blue-100 text-blue-700" : "text-gray-500")}>
+                  <span className={cn("w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold", step === 1 ? "bg-blue-600 text-white" : "bg-gray-200")}>1</span>Select Doctor
                 </button>
-              ))}
-            </div>
+                <ChevronRight className="w-4 h-4 text-gray-300" />
+                <button onClick={() => selectedDoctor && setStep(2)} disabled={!selectedDoctor} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium", step === 2 ? "bg-blue-100 text-blue-700" : "text-gray-500", !selectedDoctor && "opacity-50")}>
+                  <span className={cn("w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold", step === 2 ? "bg-blue-600 text-white" : "bg-gray-200")}>2</span>Book Patient
+                </button>
+                {selectedDoctor && (
+                  <div className="ml-auto flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-full">
+                    <Stethoscope className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-700">{selectedDoctor.doctor_name}</span>
+                    <span className="text-xs text-blue-500">₹{feeEstimate?.fee || selectedDoctor.consultation_fee}</span>
+                    <button onClick={() => { setSelectedDoctor(null); setStep(1); }} className="text-blue-400 hover:text-blue-600"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                )}
+              </div>
 
-            {/* Tab content */}
-            <div className="flex-1 overflow-y-auto p-4">
-
-              {/* ── BOOK APPOINTMENT ──────────────────────────────────────── */}
-              {tab === "book" && (
-                <div className="max-w-2xl space-y-4">
-                  {!selectedPatient && (
-                    <div className="rounded-xl border-2 border-dashed border-blue-200 bg-blue-50 p-6 text-center text-sm text-blue-500">
-                      Select a patient from the left panel to begin booking
+              {/* STEP 1: Doctor Selection */}
+              {step === 1 && (
+                <>
+                  <div className="bg-white rounded-xl border p-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input placeholder="Search by symptom, department, or doctor name..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
                     </div>
-                  )}
-
-                  {/* Appointment Type */}
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Appointment Type</Label>
-                    <div className="flex gap-2 mt-1.5">
-                      {APPT_TYPES.map(t => (
-                        <button
-                          key={t.value}
-                          onClick={() => setApptType(t.value)}
-                          className={cn(
-                            "flex-1 py-2 px-3 rounded-lg border text-xs font-medium transition-all",
-                            apptType === t.value
-                              ? "bg-blue-600 border-blue-600 text-white"
-                              : "bg-white border-gray-200 text-gray-600 hover:border-blue-300"
-                          )}
-                        >
-                          <span className="mr-1">{t.icon}</span>{t.label}
-                        </button>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button onClick={() => setSelectedDeptId(null)} className={cn("px-3 py-1 rounded-full text-xs font-medium", selectedDeptId === null ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>All</button>
+                      {departments.slice(0, 6).map((dept: Department) => (
+                        <button key={dept.id} onClick={() => setSelectedDeptId(dept.id === selectedDeptId ? null : dept.id)} className={cn("px-3 py-1 rounded-full text-xs font-medium", selectedDeptId === dept.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>{dept.name}</button>
                       ))}
                     </div>
                   </div>
-
-                  {/* Department + Doctor */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Department *</Label>
-                      <Select value={deptId} onValueChange={v => setDeptId(v ?? "")}>
-                        <SelectTrigger className="mt-1.5"><SelectValue placeholder="Select department" /></SelectTrigger>
-                        <SelectContent>
-                          {departments.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                  {loadingDoctors ? (
+                    <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredDoctors.map((doc: Doctor) => (
+                        <DoctorCard key={doc.doctor_id} doctor={doc} selected={selectedDoctor?.doctor_id === doc.doctor_id} onSelect={() => handleDoctorSelect(doc)} />
+                      ))}
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Doctor *</Label>
-                        {deptId && (
-                          <button
-                            onClick={() => setShowEarliest(!showEarliest)}
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                          >
-                            <Search className="w-3 h-3" />Find Earliest
-                          </button>
-                        )}
-                      </div>
-                      <Select value={doctorId} onValueChange={v => { setDoctorId(v ?? ""); setShowEarliest(false); }} disabled={!deptId}>
-                        <SelectTrigger className="mt-1.5"><SelectValue placeholder={deptId ? "Select doctor" : "Select dept first"} /></SelectTrigger>
-                        <SelectContent>
-                          {doctors.map(d => (
-                            <SelectItem key={d.id} value={String(d.id)}>
-                              {d.full_name} — {d.specialization}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
+                  )}
+                </>
+              )}
 
-                  {/* Earliest Available panel */}
-                  {showEarliest && deptId && (
-                    <div className="rounded-xl border bg-amber-50 p-3">
-                      <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1">
-                        <Search className="w-3 h-3" />Earliest Available Slots
-                        {searchingEarliest && <RefreshCw className="w-3 h-3 animate-spin ml-1" />}
-                      </p>
-                      {earliestSlots.length === 0 && !searchingEarliest && (
-                        <p className="text-xs text-amber-600">No slots found in next 14 days</p>
-                      )}
-                      <div className="space-y-1.5">
-                        {earliestSlots.map(s => (
-                          <button
-                            key={s.doctor_id}
-                            onClick={() => {
-                              setDoctorId(String(s.doctor_id));
-                              setApptDate(s.date);
-                              setShowEarliest(false);
-                            }}
-                            className="w-full text-left p-2 rounded-lg bg-white border hover:border-amber-400 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs font-medium">{s.doctor_name}</p>
-                              <Badge className="text-[10px] bg-green-100 text-green-800">{s.available} slots left</Badge>
+              {/* STEP 2: Patient Selection */}
+              {step === 2 && selectedDoctor && (
+                <div className="max-w-2xl mx-auto space-y-4">
+                  <div className="bg-white rounded-xl border p-4">
+                    <Label className="text-sm font-medium mb-2 block">Find Patient</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <Input placeholder="Search by phone, UHID, or name..." value={patientSearch} onChange={e => setPatientSearch(e.target.value)} className="pl-10" />
+                    </div>
+                    {debouncedPatientSearch.length >= 2 && patients.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {patients.map((p: Patient) => (
+                          <div key={p.id} onClick={() => setSelectedPatient(p)} className={cn("p-3 rounded-lg border cursor-pointer transition-all", selectedPatient?.id === p.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-blue-300")}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-600">{p.first_name[0]}</div>
+                              <div>
+                                <p className="font-medium">{p.first_name} {p.last_name}</p>
+                                <p className="text-xs text-gray-500">{p.uhid} · {p.gender[0]}/{calcAge(p.date_of_birth)} · {p.phone}</p>
+                              </div>
                             </div>
-                            <p className="text-xs text-gray-500">{s.specialization} · {format(new Date(s.date), "dd MMM yyyy (EEE)")}</p>
-                          </button>
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Date + Time (not for walk-in) */}
-                  {apptType !== "WALK_IN" && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Date *</Label>
-                        <Input
-                          type="date"
-                          className="mt-1.5"
-                          min={todayStr}
-                          value={apptDate}
-                          onChange={e => setApptDate(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Time *</Label>
-                        <Input type="time" className="mt-1.5" value={apptTime} onChange={e => setApptTime(e.target.value)} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Slot availability bar */}
-                  {slotInfo && doctorId && apptType !== "WALK_IN" && (
-                    <div className="rounded-xl border p-3 bg-white">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-gray-600">Slot Availability — {format(new Date(apptDate), "dd MMM yyyy")}</p>
-                        {slotInfo.is_full ? (
-                          <Badge className="text-xs bg-red-100 text-red-700">FULL</Badge>
-                        ) : (
-                          <Badge className="text-xs bg-green-100 text-green-700">{slotInfo.available} available</Badge>
-                        )}
-                      </div>
-                      {slotInfo.has_schedule ? (
-                        <>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className={cn("h-full rounded-full transition-all", slotInfo.is_full ? "bg-red-500" : slotInfo.booked / slotInfo.max > 0.75 ? "bg-amber-500" : "bg-green-500")}
-                              style={{ width: `${Math.min(100, (slotInfo.booked / slotInfo.max) * 100)}%` }}
-                            />
+                    )}
+                    <button onClick={() => setShowQuickRegister(!showQuickRegister)} className="mt-3 flex items-center gap-2 text-sm text-blue-600">
+                      <UserPlus className="w-4 h-4" />Quick Register (Walk-in)
+                    </button>
+                    {showQuickRegister && (
+                      <div className="mt-3 p-4 bg-blue-50 rounded-lg space-y-3">
+                        <p className="text-xs text-blue-800 font-medium">Minimal details for walk-in — complete profile later</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div><Label className="text-xs">First Name *</Label><Input value={quickRegForm.first_name} onChange={e => setQuickRegForm(f => ({ ...f, first_name: e.target.value }))} className="mt-1" /></div>
+                          <div><Label className="text-xs">Last Name</Label><Input value={quickRegForm.last_name} onChange={e => setQuickRegForm(f => ({ ...f, last_name: e.target.value }))} className="mt-1" /></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div><Label className="text-xs">Phone *</Label><Input value={quickRegForm.phone} onChange={e => setQuickRegForm(f => ({ ...f, phone: e.target.value }))} className="mt-1" maxLength={10} /></div>
+                          <div><Label className="text-xs">Date of Birth *</Label><Input type="date" value={quickRegForm.date_of_birth} onChange={e => setQuickRegForm(f => ({ ...f, date_of_birth: e.target.value }))} className="mt-1" /></div>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Gender</Label>
+                          <div className="flex gap-2 mt-1">
+                            {["MALE", "FEMALE", "OTHER"].map(g => (
+                              <button key={g} onClick={() => setQuickRegForm(f => ({ ...f, gender: g }))} className={cn("px-3 py-1.5 rounded text-xs font-medium border", quickRegForm.gender === g ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-200")}>{g}</button>
+                            ))}
                           </div>
-                          <p className="text-xs text-gray-400 mt-1">{slotInfo.booked}/{slotInfo.max} patients booked</p>
-                          {slotInfo.slots.map((sl, i) => (
-                            <p key={i} className="text-xs text-gray-500">{sl.start}–{sl.end} (max {sl.max})</p>
-                          ))}
-                        </>
-                      ) : (
-                        <p className="text-xs text-amber-600">No scheduled sessions on this day. Walk-in only.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Chief Complaint */}
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Chief Complaint</Label>
-                    <Textarea
-                      className="mt-1.5 text-sm resize-none"
-                      rows={2}
-                      placeholder="e.g. Chest pain since 2 days, breathlessness on exertion..."
-                      value={complaint}
-                      onChange={e => setComplaint(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Walk-in info */}
-                  {apptType === "WALK_IN" && (
-                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
-                      Walk-in token will be assigned immediately for today. Patient will be added to the triage queue.
-                    </div>
-                  )}
-
-                  {/* Action buttons */}
-                  <div className="flex gap-3">
-                    <Button
-                      onClick={handleBook}
-                      disabled={bookMut.isPending || !selectedPatient}
-                      className="flex-1"
-                    >
-                      <Ticket className="w-4 h-4 mr-2" />
-                      {bookMut.isPending ? "Booking..." : apptType === "WALK_IN" ? "Assign Walk-in Token" : "Book Appointment"}
-                    </Button>
-                    {slotInfo?.is_full && (
-                      <Button variant="outline" onClick={handleWaitlist} disabled={waitlistMut.isPending}>
-                        <CalendarClock className="w-4 h-4 mr-2" />
-                        Waitlist
-                      </Button>
+                        </div>
+                        <Button size="sm" onClick={handleQuickRegister} disabled={quickRegisterMut.isPending} className="w-full">
+                          {quickRegisterMut.isPending ? "Registering..." : "Register & Select"}
+                        </Button>
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
 
-              {/* ── TODAY'S SCHEDULE ────────────────────────────────────────── */}
-              {tab === "schedule" && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-semibold text-gray-700">
-                      {format(new Date(), "dd MMM yyyy")} — {todayAppts.length} appointments
-                    </h2>
-                    <Button variant="outline" size="sm" onClick={() => refetchToday()} className="text-xs h-7">
-                      <RefreshCw className="w-3 h-3 mr-1" />Refresh
-                    </Button>
-                  </div>
-
-                  {todayAppts.length === 0 && (
-                    <div className="text-center py-12 text-gray-400">
-                      <CalendarDays className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                      <p className="text-sm">No appointments today</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    {todayAppts.map(appt => (
-                      <div
-                        key={appt.id}
-                        className={cn(
-                          "bg-white rounded-xl border p-3 flex items-center gap-3",
-                          appt.delay_minutes && appt.delay_minutes > 0 && ["SCHEDULED", "CHECKED_IN"].includes(appt.status) && "border-amber-300 bg-amber-50/30"
-                        )}
-                      >
-                        {/* Token */}
-                        <div className="w-10 h-10 rounded-xl bg-blue-950 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                          {appt.token_number ?? "—"}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-sm text-gray-900 truncate">{appt.patient_name}</p>
-                            <span className="text-xs text-gray-400 shrink-0">{appt.patient_uhid}</span>
-                            <Badge className={cn("text-[10px] px-1.5 py-0 shrink-0", STATUS_COLOR[appt.status])}>
-                              {appt.status.replace("_", " ")}
-                            </Badge>
-                            {appt.delay_minutes && appt.delay_minutes > 0 && ["SCHEDULED", "CHECKED_IN"].includes(appt.status) && (
-                              <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800">
-                                <Clock className="w-2.5 h-2.5 mr-0.5 inline" />+{appt.delay_minutes}m delay
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {appt.doctor_name} · {appt.department_name} · {appt.appointment_time?.slice(0, 5)}
-                          </p>
-                          {appt.chief_complaint && (
-                            <p className="text-xs text-gray-400 mt-0.5 truncate">{appt.chief_complaint}</p>
-                          )}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-1.5 shrink-0">
-                          {appt.status === "SCHEDULED" && (
-                            <>
-                              <Button size="sm" className="h-7 text-xs px-2" onClick={() => checkinMut.mutate(appt.id)} disabled={checkinMut.isPending}>
-                                <CheckCircle2 className="w-3 h-3 mr-1" />Check In
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => { setRescheduleTarget(appt); setReschedDate(appt.appointment_date); setReschedTime(appt.appointment_time?.slice(0,5)); }}>
-                                <ArrowRightLeft className="w-3 h-3" />
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-amber-600 border-amber-200" onClick={() => setDelayTarget({ appt_id: appt.id, doctor_name: appt.doctor_name || "" })}>
-                                <Bell className="w-3 h-3" />
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-500 border-red-200" onClick={() => cancelMut.mutate(appt.id)}>
-                                <XCircle className="w-3 h-3" />
-                              </Button>
-                            </>
-                          )}
-                          {appt.status === "CHECKED_IN" && (
-                            <>
-                              <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => { setRescheduleTarget(appt); setReschedDate(appt.appointment_date); setReschedTime(appt.appointment_time?.slice(0,5)); }}>
-                                <ArrowRightLeft className="w-3 h-3 mr-1" />Reschedule
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-gray-500" onClick={() => noShowMut.mutate(appt.id)}>
-                                No-show
-                              </Button>
-                            </>
-                          )}
-                          {["IN_QUEUE", "WITH_DOCTOR"].includes(appt.status) && (
-                            <span className="text-xs text-violet-600 font-medium px-2">With clinical team</span>
-                          )}
-                          {appt.status === "COMPLETED" && (
-                            <span className="text-xs text-green-600 font-medium px-2">
-                              <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />Done
-                            </span>
-                          )}
-                        </div>
+                  {selectedPatient && (
+                    <>
+                      <div className="bg-white rounded-xl border p-4">
+                        <Label className="text-sm font-medium mb-2 block">Chief Complaint</Label>
+                        <Textarea placeholder="Why is the patient visiting?" value={complaint} onChange={e => setComplaint(e.target.value)} rows={2} />
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ── WAITLIST ────────────────────────────────────────────────── */}
-              {tab === "waitlist" && (
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3">Active Waitlist</h2>
-                  {waitlistEntries.length === 0 && (
-                    <div className="text-center py-12 text-gray-400">
-                      <CalendarClock className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                      <p className="text-sm">No waitlist entries</p>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    {waitlistEntries.map((w: any) => (
-                      <div key={w.id} className="bg-white rounded-xl border p-3 flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-sm shrink-0">
-                          #{w.position}
+                      <div className="bg-white rounded-xl border p-4">
+                        <p className="text-sm font-medium mb-3">Booking Summary</p>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between"><span className="text-gray-500">Patient</span><span className="font-medium">{selectedPatient.first_name} {selectedPatient.last_name}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Doctor</span><span className="font-medium">{selectedDoctor.doctor_name}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Department</span><span>{selectedDoctor.department_name}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Type</span><Badge variant="outline" className={feeEstimate?.visit_type === "FOLLOW_UP" ? "bg-green-50 text-green-700" : "bg-blue-50 text-blue-700"}>{feeEstimate?.visit_type || "NEW"}</Badge></div>
+                          <hr className="my-2" />
+                          <div className="flex justify-between text-base font-semibold"><span>Fee</span><span className="text-blue-600">₹{feeEstimate?.fee || selectedDoctor.consultation_fee}</span></div>
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{w.patient_name}</p>
-                          <p className="text-xs text-gray-500">{w.doctor_name} · Preferred: {fmtDate(w.preferred_date)}</p>
-                        </div>
-                        <Badge className={cn("text-xs", w.status === "NOTIFIED" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700")}>
-                          {w.status}
-                        </Badge>
+                        <Button className="w-full mt-4" onClick={handleBook} disabled={bookMut.isPending}>
+                          {bookMut.isPending ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Booking...</> : <><CheckCircle2 className="w-4 h-4 mr-2" />Confirm Booking</>}
+                        </Button>
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
+                  <button onClick={() => setStep(1)} className="flex items-center gap-2 text-sm text-gray-500"><ChevronLeft className="w-4 h-4" />Back</button>
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      </div>
+          )}
 
-      {/* ── Reschedule Modal ──────────────────────────────────────────────── */}
-      {rescheduleTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-96 shadow-2xl">
-            <h3 className="font-semibold text-lg mb-1">Reschedule Appointment</h3>
-            <p className="text-sm text-gray-500 mb-4">
-              {rescheduleTarget.patient_name} · Token #{rescheduleTarget.token_number}
-            </p>
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs">New Date</Label>
-                <Input type="date" min={todayStr} value={reschedDate} onChange={e => setReschedDate(e.target.value)} className="mt-1" />
-              </div>
-              <div>
-                <Label className="text-xs">New Time</Label>
-                <Input type="time" value={reschedTime} onChange={e => setReschedTime(e.target.value)} className="mt-1" />
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button onClick={() => rescheduleMut.mutate({ id: rescheduleTarget.id, new_date: reschedDate, new_time: `${reschedTime}:00` })} disabled={rescheduleMut.isPending} className="flex-1">
-                {rescheduleMut.isPending ? "Rescheduling..." : "Confirm Reschedule"}
-              </Button>
-              <Button variant="outline" onClick={() => setRescheduleTarget(null)}>Cancel</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Delay Notification Modal ──────────────────────────────────────── */}
-      {delayTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-96 shadow-2xl">
-            <h3 className="font-semibold text-lg mb-1">Doctor Running Late</h3>
-            <p className="text-sm text-gray-500 mb-4">{delayTarget.doctor_name}</p>
-            <div>
-              <Label className="text-xs">Delay Duration</Label>
-              <div className="flex gap-2 mt-2">
-                {["15", "30", "45", "60"].map(m => (
-                  <button
-                    key={m}
-                    onClick={() => setDelayMinutes(m)}
-                    className={cn("flex-1 py-1.5 rounded-lg border text-sm font-medium transition-all",
-                      delayMinutes === m ? "bg-amber-500 border-amber-500 text-white" : "bg-white border-gray-200 text-gray-600"
-                    )}
-                  >{m} min</button>
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {/* TAB 2: APPOINTMENTS */}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {activeTab === "appointments" && (
+            <div className="space-y-4">
+              {/* Stats */}
+              <div className="grid grid-cols-5 gap-3">
+                {[
+                  { label: "Total", value: stats.total, color: "bg-gray-100 text-gray-700" },
+                  { label: "Scheduled", value: stats.scheduled, color: "bg-slate-100 text-slate-700" },
+                  { label: "Checked In", value: stats.checkedIn, color: "bg-blue-100 text-blue-700" },
+                  { label: "With Doctor", value: stats.withDoctor, color: "bg-violet-100 text-violet-700" },
+                  { label: "Completed", value: stats.completed, color: "bg-green-100 text-green-700" },
+                ].map(s => (
+                  <div key={s.label} className={cn("rounded-xl p-3 text-center", s.color)}>
+                    <p className="text-2xl font-bold">{s.value}</p>
+                    <p className="text-xs">{s.label}</p>
+                  </div>
                 ))}
               </div>
+
+              {/* Filter */}
+              <div className="flex gap-2">
+                {["all", "SCHEDULED", "CHECKED_IN", "IN_QUEUE", "WITH_DOCTOR", "COMPLETED", "CANCELLED"].map(f => (
+                  <button key={f} onClick={() => setApptFilter(f)} className={cn("px-3 py-1 rounded-full text-xs font-medium", apptFilter === f ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200")}>
+                    {f === "all" ? "All" : f.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+
+              {/* Table */}
+              <div className="bg-white rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">Token</TableHead>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Doctor</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingAppts ? (
+                      <TableRow><TableCell colSpan={6} className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></TableCell></TableRow>
+                    ) : filteredAppointments.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-500">No appointments</TableCell></TableRow>
+                    ) : (
+                      filteredAppointments.map((a: Appointment) => (
+                        <TableRow key={a.id}>
+                          <TableCell className="font-mono font-bold text-blue-600">#{a.token_number || "-"}</TableCell>
+                          <TableCell><p className="font-medium">{a.patient_name}</p><p className="text-xs text-gray-500">{a.patient_uhid}</p></TableCell>
+                          <TableCell><p>{a.doctor_name}</p><p className="text-xs text-gray-500">{a.department_name}</p></TableCell>
+                          <TableCell>{a.appointment_time?.substring(0, 5)}</TableCell>
+                          <TableCell><StatusBadge status={a.status} /></TableCell>
+                          <TableCell className="text-right">
+                            {a.status === "SCHEDULED" && (
+                              <Button size="sm" variant="outline" onClick={() => checkinMut.mutate(a.id)} disabled={checkinMut.isPending}><LogIn className="w-3.5 h-3.5 mr-1" />Check In</Button>
+                            )}
+                            {(a.status === "SCHEDULED" || a.status === "CHECKED_IN") && (
+                              <Button size="sm" variant="ghost" className="text-red-600 ml-2" onClick={() => cancelMut.mutate(a.id)} disabled={cancelMut.isPending}><XCircle className="w-3.5 h-3.5" /></Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-            <div className="flex gap-2 mt-4">
-              <Button onClick={() => delayMut.mutate({ id: delayTarget.appt_id, delay_minutes: Number(delayMinutes) })} disabled={delayMut.isPending} className="flex-1 bg-amber-500 hover:bg-amber-600">
-                <Bell className="w-4 h-4 mr-2" />
-                {delayMut.isPending ? "Notifying..." : `Notify Patients (+${delayMinutes}m)`}
-              </Button>
-              <Button variant="outline" onClick={() => setDelayTarget(null)}>Cancel</Button>
+          )}
+
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {/* TAB 3: PATIENTS */}
+          {/* ═══════════════════════════════════════════════════════════════════ */}
+          {activeTab === "patients" && (
+            <div className="max-w-4xl mx-auto space-y-4">
+              {showFullRegistration ? (
+                <FullRegistrationForm
+                  onSuccess={(patient) => {
+                    setShowFullRegistration(false);
+                    qc.invalidateQueries({ queryKey: ["patient-search-tab"] });
+                    qc.invalidateQueries({ queryKey: ["recent-patients"] });
+                    toast.success(`Patient ${patient.uhid} registered successfully`);
+                  }}
+                  onCancel={() => setShowFullRegistration(false)}
+                />
+              ) : (
+                <>
+                  {/* Search + Register Button */}
+                  <div className="flex gap-3">
+                    <div className="flex-1 bg-white rounded-xl border p-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input placeholder="Search by phone, UHID, or name..." value={patientSearchTab} onChange={e => setPatientSearchTab(e.target.value)} className="pl-10" />
+                      </div>
+                    </div>
+                    <Button onClick={() => setShowFullRegistration(true)} className="flex items-center gap-2">
+                      <UserPlus className="w-4 h-4" />Full Registration
+                    </Button>
+                  </div>
+
+                  {/* Loading */}
+                  {searchingPatientsTab && (
+                    <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-blue-600" /></div>
+                  )}
+
+                  {/* Results */}
+                  {!searchingPatientsTab && debouncedPatientSearchTab.length >= 2 && (
+                    <div className="bg-white rounded-xl border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>UHID</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead>Age/Gender</TableHead>
+                            <TableHead>Profile</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {patientsTab.length === 0 ? (
+                            <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-500">No patients found</TableCell></TableRow>
+                          ) : (
+                            patientsTab.map((p: Patient) => {
+                              const isIncomplete = !p.city || p.city === "—" || p.address_line1 === "To be updated";
+                              return (
+                                <TableRow key={p.id}>
+                                  <TableCell className="font-mono text-blue-600">{p.uhid}</TableCell>
+                                  <TableCell className="font-medium">{p.first_name} {p.last_name}</TableCell>
+                                  <TableCell>{p.phone}</TableCell>
+                                  <TableCell>{calcAge(p.date_of_birth)} / {p.gender[0]}</TableCell>
+                                  <TableCell>
+                                    {isIncomplete ? (
+                                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                        <AlertCircle className="w-3 h-3 mr-1" />Incomplete
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                        <CheckCircle2 className="w-3 h-3 mr-1" />Complete
+                                      </Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right space-x-2">
+                                    <Button size="sm" variant="outline" onClick={() => { setSelectedPatient(p); setActiveTab("new"); setStep(2); }}>
+                                      <CalendarPlus className="w-3.5 h-3.5 mr-1" />Book
+                                    </Button>
+                                    {isIncomplete && (
+                                      <Button size="sm" variant="ghost" className="text-amber-600">
+                                        <Edit className="w-3.5 h-3.5 mr-1" />Complete
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {/* Recent Patients (when no search) */}
+                  {debouncedPatientSearchTab.length < 2 && (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-700">All Patients ({recentPatients.length})</p>
+                      </div>
+                      {loadingRecentPatients ? (
+                        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-blue-600" /></div>
+                      ) : (
+                        <div className="bg-white rounded-xl border overflow-hidden">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>UHID</TableHead>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Phone</TableHead>
+                                <TableHead>Age/Gender</TableHead>
+                                <TableHead>Profile</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {recentPatients.length === 0 ? (
+                                <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-500">No patients registered yet</TableCell></TableRow>
+                              ) : (
+                                recentPatients.map((p: Patient) => {
+                                  const isIncomplete = !p.city || p.city === "—" || p.address_line1 === "To be updated";
+                                  return (
+                                    <TableRow key={p.id}>
+                                      <TableCell className="font-mono text-blue-600">{p.uhid}</TableCell>
+                                      <TableCell className="font-medium">{p.first_name} {p.last_name}</TableCell>
+                                      <TableCell>{p.phone}</TableCell>
+                                      <TableCell>{calcAge(p.date_of_birth)} / {p.gender[0]}</TableCell>
+                                      <TableCell>
+                                        {isIncomplete ? (
+                                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                                            <AlertCircle className="w-3 h-3 mr-1" />Incomplete
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                            <CheckCircle2 className="w-3 h-3 mr-1" />Complete
+                                          </Badge>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-right space-x-2">
+                                        <Button size="sm" variant="outline" onClick={() => { setSelectedPatient(p); setActiveTab("new"); setStep(2); }}>
+                                          <CalendarPlus className="w-3.5 h-3.5 mr-1" />Book
+                                        </Button>
+                                        {isIncomplete && (
+                                          <Button size="sm" variant="ghost" className="text-amber-600">
+                                            <Edit className="w-3.5 h-3.5 mr-1" />Complete
+                                          </Button>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
